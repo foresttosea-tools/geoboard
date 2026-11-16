@@ -24,10 +24,20 @@ type Screen =
   | { name: 'detail'; id: string }
   | { name: 'settings' };
 
+/**
+ * 施工者名を設定の値で上書きする（要件4.3：施工者名の初期値はログインユーザー名）。
+ * 設定が空のときは元の値を残す
+ */
+function withCurrentWorker(board: BoardContent): BoardContent {
+  const worker = prefs.getWorkerName().trim();
+  if (!worker) return board;
+  return board.map((it, i) => (i === SLOT_WORKER ? { ...it, value: worker } : it));
+}
+
 /** 黒板を開くときの初期内容：その台帳で最後に使った黒板。なければ初期値（要件6.4） */
 function initialBoard(ledger: Ledger): BoardContent {
   const last = normalizeBoard(ledger.lastBoard);
-  if (last) return withToday(last);
+  if (last) return withCurrentWorker(withToday(last));
   return createDefaultBoard({ customerName: ledger.customerName, worker: prefs.getWorkerName() });
 }
 
@@ -87,10 +97,9 @@ export default function App() {
         <TemplateList
           onBack={() => setScreen({ name: 'editor' })}
           onPick={(t) => {
-            const picked = withToday(normalizeBoard(t.content) ?? createDefaultBoard());
-            // 顧客名・施工者名が空なら台帳・利用者の値で補う
+            const picked = withCurrentWorker(withToday(normalizeBoard(t.content) ?? createDefaultBoard()));
+            // 顧客名が空なら台帳の値で補う
             if (!picked[SLOT_CUSTOMER].value) picked[SLOT_CUSTOMER].value = ledger.customerName;
-            if (!picked[SLOT_WORKER].value) picked[SLOT_WORKER].value = prefs.getWorkerName();
             setBoard(picked);
             setScreen({ name: 'editor' });
           }}
