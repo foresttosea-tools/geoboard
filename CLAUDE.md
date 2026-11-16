@@ -25,4 +25,17 @@ React + TypeScript + Vite / vite-plugin-pwa / Dexie.js（IndexedDB）/ Supabase 
 
 ## 開発ステップ
 
-要件定義書の「12. 開発ステップ」の順に進める。現在：ステップ1（黒板と撮影・オフライン）
+要件定義書の「12. 開発ステップ」の順に進める。進捗は README.md の「進捗」を参照。
+
+## コマンド
+
+- `npm run dev`：開発サーバー
+- `npm run build`：型チェック＋本番ビルド（変更後は必ず通すこと）
+- `npx oxlint`：Lint
+
+## コード構成
+
+- `src/blackboard/`：黒板の定義（`model.ts`）と描画（`render.ts`）。プレビューも写真への合成も同じ `drawBoard` を使う
+- `src/lib/`：カメラ、センサー（位置情報・水平器）、画像処理、保存処理
+- `src/screens/`：画面（`docs/screens.md` の画面IDに対応）
+- `src/db.ts`：IndexedDB（Dexie）の定義
