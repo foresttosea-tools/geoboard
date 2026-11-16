@@ -9,6 +9,7 @@ const PATHS = {
   close: 'M18 6L6 18M6 6l12 12',
   sort: 'M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4',
   board: 'M3 5h18v12H3zM8 21h8M12 17v4M3 9h18M9 5v12',
+  image: 'M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2zM8.5 10a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM21 15l-5-5L5 21',
 } as const;
 
 export type IconName = keyof typeof PATHS;

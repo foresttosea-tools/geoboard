@@ -63,10 +63,14 @@ export interface WorkRecord {
 
 /** 端末内に保存する画像本体 */
 export interface StoredImage {
-  /** `${recordId}:composite` / `${recordId}:original` / `${recordId}:thumb` */
+  /**
+   * メイン写真：`${recordId}:composite` / `${recordId}:original` / `${recordId}:thumb`
+   * 追加写真：`${extraId}:extra` / `${extraId}:extra_thumb`
+   */
   key: string;
+  /** 画像が属する作業記録のID（追加写真も親の作業記録のID） */
   recordId: string;
-  kind: 'composite' | 'original' | 'thumb';
+  kind: 'composite' | 'original' | 'thumb' | 'extra' | 'extra_thumb';
   blob: Blob;
 }
 
@@ -84,4 +88,17 @@ export interface BoardTemplate {
 export interface Handover {
   text: string;
   inReport: boolean;
+}
+
+/** 追加写真（黒板なし・複数枚。閲覧用でレポートには載せない） */
+export interface ExtraPhoto {
+  id: string;
+  recordId: string;
+  source: 'camera' | 'import';
+  width: number;
+  height: number;
+  syncStatus: 'pending' | 'synced' | 'failed';
+  createdBy: string;
+  createdAt: string;
+  deletedAt: string | null;
 }

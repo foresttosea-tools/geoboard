@@ -1,4 +1,6 @@
 import { SLOT_DATE, formatBoardDate } from '../blackboard/model';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { db } from '../db';
 import type { WorkRecord } from '../types';
 
 export function formatShotDate(r: WorkRecord) {
@@ -15,6 +17,12 @@ export function Marks({ r }: { r: WorkRecord }) {
       {r.shotDateNeedsCheck && <span className="badge badge-warn">日付要確認</span>}
       {r.source === 'import' && <span className="badge">取込画像</span>}
       {r.latitude == null && <span className="badge">位置なし</span>}
+      <ExtraCount recordId={r.id} />
     </div>
   );
+}
+
+function ExtraCount({ recordId }: { recordId: string }) {
+  const n = useLiveQuery(() => db.extras.where('recordId').equals(recordId).filter((x) => !x.deletedAt).count(), [recordId]);
+  return n ? <span className="badge badge-brand">追加写真 {n}</span> : null;
 }

@@ -1,12 +1,13 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { LEGACY_HANDOVER_SLOT, migrateLegacyBoard } from './blackboard/model';
-import type { BoardTemplate, Ledger, StoredImage, WorkRecord } from './types';
+import type { BoardTemplate, ExtraPhoto, Ledger, StoredImage, WorkRecord } from './types';
 
 export const db = new Dexie('geoboard') as Dexie & {
   ledgers: EntityTable<Ledger, 'id'>;
   records: EntityTable<WorkRecord, 'id'>;
   images: EntityTable<StoredImage, 'key'>;
   templates: EntityTable<BoardTemplate, 'id'>;
+  extras: EntityTable<ExtraPhoto, 'id'>;
 };
 
 db.version(1).stores({
@@ -33,6 +34,11 @@ db.version(2)
       if (l.lastBoard) l.lastBoard = migrateLegacyBoard(l.lastBoard);
     });
   });
+
+// v3：作業記録ごとの追加写真
+db.version(3).stores({
+  extras: 'id, recordId, createdAt',
+});
 
 export const nowIso = () => new Date().toISOString();
 export const newId = () => crypto.randomUUID();

@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useRef, useState } from 'react';
 import { BOARD_SLOTS, SLOT_DATE, formatBoardDate } from '../blackboard/model';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { ExtraPhotos } from '../components/ExtraPhotos';
 import { HandoverField } from '../components/HandoverField';
 import { Icon } from '../components/Icon';
 import { Marks } from '../components/RecordMarks';
@@ -131,6 +132,9 @@ export function RecordDetail({ id, ids, onNavigate, onBack }: Props) {
           </div>
         )}
         <Marks r={record} />
+
+        <ExtraPhotos recordId={id} />
+
         <dl className="detail-list">
           {record.board?.map((it, i) => (
             <div key={i}>
