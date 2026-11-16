@@ -296,3 +296,40 @@ button:disabled { opacity: 0.4; cursor: default; }
   .cam-bottombar { grid-template-columns: 1fr; grid-template-rows: 1fr auto 1fr; padding: 12px calc(14px + env(safe-area-inset-right, 0px)) 12px 12px; width: 124px; }
   .cam-status, .cam-hint { text-align: center; }
 }
+
+/* ---------- 詳細画面の前後移動 ---------- */
+.pager {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px;
+  padding: 8px 12px calc(8px + var(--safe-bottom));
+  background: color-mix(in srgb, var(--c-surface) 92%, transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-top: 1px solid var(--c-border);
+}
+.pager-btn {
+  display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 12px;
+  border: none; background: none; color: var(--brand); font-weight: 700; font-size: 14px; border-radius: 12px;
+}
+.pager-btn:last-child { justify-self: end; }
+.pager-btn:active:not(:disabled) { background: var(--brand-soft); }
+.pager-pos { font-size: 13px; font-weight: 700; color: var(--c-muted); font-variant-numeric: tabular-nums; }
+.flip { display: inline-flex; transform: scaleX(-1); }
+.slide-next { animation: slide-next 0.22s ease-out; }
+.slide-prev { animation: slide-prev 0.22s ease-out; }
+@keyframes slide-next { from { transform: translateX(28%); opacity: 0; } }
+@keyframes slide-prev { from { transform: translateX(-28%); opacity: 0; } }
+
+/* ---------- 確認ダイアログ ---------- */
+.dialog-backdrop {
+  position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 24px;
+  background: rgba(8, 20, 24, 0.5); animation: fade 0.15s ease-out;
+}
+.dialog {
+  width: min(360px, 100%); background: var(--c-surface); border-radius: 20px; padding: 22px 20px 16px;
+  box-shadow: var(--shadow-lg); animation: pop 0.18s ease-out;
+}
+.dialog h2 { margin: 0 0 8px; font-size: 17px; }
+.dialog p { margin: 0 0 18px; color: var(--c-muted); font-size: 14px; line-height: 1.6; }
+.dialog-actions { display: flex; flex-direction: column; gap: 8px; }
+.dialog-actions .btn { width: 100%; min-height: 48px; }
+.btn-danger { color: var(--c-danger); }
+@keyframes pop { from { transform: scale(0.94); opacity: 0; } }

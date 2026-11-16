@@ -21,7 +21,7 @@ type Screen =
   | { name: 'templates' }
   | { name: 'camera' }
   | { name: 'confirm'; result: CaptureResult }
-  | { name: 'detail'; id: string }
+  | { name: 'detail'; id: string; ids: string[] }
   | { name: 'settings' };
 
 /**
@@ -70,7 +70,7 @@ export default function App() {
         <RecordList
           ledger={ledger}
           onShoot={openEditor}
-          onOpen={(id) => setScreen({ name: 'detail', id })}
+          onOpen={(id, ids) => setScreen({ name: 'detail', id, ids })}
           onSettings={() => setScreen({ name: 'settings' })}
         />
       );
@@ -138,7 +138,14 @@ export default function App() {
         />
       );
     case 'detail':
-      return <RecordDetail id={screen.id} onBack={() => setScreen({ name: 'list' })} />;
+      return (
+        <RecordDetail
+          id={screen.id}
+          ids={screen.ids}
+          onNavigate={(id) => setScreen({ ...screen, id })}
+          onBack={() => setScreen({ name: 'list' })}
+        />
+      );
     case 'settings':
       return <Settings onBack={() => setScreen({ name: 'list' })} />;
   }

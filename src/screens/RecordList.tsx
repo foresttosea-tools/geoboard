@@ -11,13 +11,14 @@ import type { Ledger } from '../types';
 interface Props {
   ledger: Ledger;
   onShoot: () => void;
-  onOpen: (id: string) => void;
+  /** ids は一覧の並び順。詳細画面で前後の記録に移動するのに使う */
+  onOpen: (id: string, ids: string[]) => void;
   onSettings: () => void;
 }
 
 export function RecordList({ ledger, onShoot, onOpen, onSettings }: Props) {
   const [view, setView] = useState(prefs.getListView());
-  const [order, setOrder] = useState<'desc' | 'asc'>('desc');
+  const [order, setOrder] = useState(prefs.getListOrder());
   const records = useLiveQuery(() => db.records.where('ledgerId').equals(ledger.id).filter((r) => !r.deletedAt).toArray(), [ledger.id]);
 
   const sorted = useMemo(
@@ -57,7 +58,11 @@ export function RecordList({ ledger, onShoot, onOpen, onSettings }: Props) {
           {sorted.length}件の記録
           {pending > 0 && <span className="badge badge-pending">未送信 {pending}</span>}
         </span>
-        <button className="chip" onClick={() => setOrder(order === 'desc' ? 'asc' : 'desc')}>
+        <button className="chip" onClick={() => {
+            const o = order === 'desc' ? 'asc' : 'desc';
+            setOrder(o);
+            prefs.setListOrder(o);
+          }}>
           <Icon name="sort" size={14} />
           {order === 'desc' ? '新しい順' : '古い順'}
         </button>
@@ -69,7 +74,7 @@ export function RecordList({ ledger, onShoot, onOpen, onSettings }: Props) {
           <ul className="rec-list">
             {sorted.map((r) => (
               <li key={r.id}>
-                <button className="rec-item" onClick={() => onOpen(r.id)}>
+                <button className="rec-item" onClick={() => onOpen(r.id, sorted.map((x) => x.id))}>
                   <Thumb id={r.id} />
                   <div className="rec-text">
                     <div className="rec-line1">
@@ -90,7 +95,7 @@ export function RecordList({ ledger, onShoot, onOpen, onSettings }: Props) {
           <ul className="rec-grid">
             {sorted.map((r) => (
               <li key={r.id}>
-                <button className="grid-item" onClick={() => onOpen(r.id)}>
+                <button className="grid-item" onClick={() => onOpen(r.id, sorted.map((x) => x.id))}>
                   <Thumb id={r.id} />
                   <span className="grid-date">{formatShotDate(r)}</span>
                   {r.syncStatus !== 'synced' && <span className="grid-dot" aria-label="未送信" />}
