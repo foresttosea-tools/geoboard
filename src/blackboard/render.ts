@@ -6,7 +6,8 @@ export const BOARD_W = 1000;
 export const BOARD_H = 720;
 export const BOARD_ASPECT = BOARD_H / BOARD_W;
 
-const FRAME = 26;
+/** 外周の余白（木枠なし。要件6.4） */
+const FRAME = 12;
 const LABEL_RATIO = 0.27;
 const PAD_X = 14;
 const FONT_FAMILY = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic", Meiryo, sans-serif';
@@ -102,22 +103,13 @@ function drawMultiLine(ctx: Ctx, text: string, x: number, y: number, w: number, 
 }
 
 function drawFrame(ctx: Ctx) {
-  // 木枠
-  const grad = ctx.createLinearGradient(0, 0, BOARD_W, BOARD_H);
-  grad.addColorStop(0, '#9a6a3a');
-  grad.addColorStop(0.5, '#7a4e26');
-  grad.addColorStop(1, '#5e3a1b');
-  ctx.fillStyle = grad;
-  ctx.beginPath();
-  ctx.roundRect(0, 0, BOARD_W, BOARD_H, 14);
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  // 黒板面
+  // 黒板面（木枠なし）
   ctx.fillStyle = COLOR_BOARD;
-  ctx.fillRect(FRAME, FRAME, BOARD_W - FRAME * 2, BOARD_H - FRAME * 2);
-  ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+  ctx.beginPath();
+  ctx.roundRect(0, 0, BOARD_W, BOARD_H, 10);
+  ctx.fill();
+  // 外周の罫線
+  ctx.strokeStyle = COLOR_LINE;
   ctx.lineWidth = 3;
   ctx.strokeRect(FRAME, FRAME, BOARD_W - FRAME * 2, BOARD_H - FRAME * 2);
 }

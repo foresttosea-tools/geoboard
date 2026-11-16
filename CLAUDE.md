@@ -25,7 +25,7 @@ React + TypeScript + Vite / vite-plugin-pwa / Dexie.js（IndexedDB）/ Supabase 
 
 ## 開発ステップ
 
-要件定義書の「12. 開発ステップ」の順に進める。進捗は README.md の「進捗」を参照。
+要件定義書の「13. 開発ステップ」の順に進める。進捗は README.md の「進捗」を参照。
 
 ## コマンド
 

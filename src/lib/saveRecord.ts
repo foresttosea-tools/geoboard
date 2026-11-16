@@ -1,5 +1,5 @@
 import { db, newId, nowIso } from '../db';
-import type { BoardContent, BoardLayout, CaptureMode, StoredImage, WorkRecord } from '../types';
+import type { BoardContent, BoardLayout, CaptureMode, Handover, StoredImage, WorkRecord } from '../types';
 import { canvasToJpeg, composeWithBoard, makeThumbnail } from './image';
 import { prefs } from './prefs';
 import type { GeoFix } from './sensors';
@@ -8,6 +8,7 @@ interface SaveInput {
   ledgerId: string;
   mode: CaptureMode;
   board: BoardContent;
+  handover: Handover;
   layout: BoardLayout | null;
   photo: HTMLCanvasElement;
   geo: GeoFix | null;
@@ -37,6 +38,8 @@ export async function saveCapture(input: SaveInput): Promise<WorkRecord> {
     board: withBoard ? board : null,
     boardLayout: withBoard ? layout : null,
     memo: '',
+    handover: input.handover.text.trim(),
+    handoverInReport: input.handover.inReport,
     shotAt: input.shotAt,
     shotDateNeedsCheck: input.shotDateNeedsCheck ?? false,
     source: input.source,

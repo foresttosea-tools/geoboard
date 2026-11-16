@@ -2,21 +2,25 @@ import type { BoardContent } from '../types';
 
 export type SlotKind = 'single' | 'multi' | 'date';
 
-/** 黒板の8枠の定義（レイアウト固定。要件6.4） */
+/** 黒板の7枠の定義（レイアウト固定。要件6.4）。引継ぎ事項は黒板に載せず作業記録側で持つ */
 export const BOARD_SLOTS: { defaultLabel: string; kind: SlotKind; rows: number }[] = [
   { defaultLabel: '顧客名', kind: 'single', rows: 1 },
   { defaultLabel: '作業場所', kind: 'single', rows: 1 },
   { defaultLabel: '作業内容', kind: 'single', rows: 1 },
   { defaultLabel: '機材（通信機器 / 電源）', kind: 'single', rows: 1 },
   { defaultLabel: '撮影日', kind: 'date', rows: 1 },
-  { defaultLabel: '備考', kind: 'multi', rows: 2 },
-  { defaultLabel: '次回への引継ぎ事項', kind: 'multi', rows: 2 },
+  { defaultLabel: '備考', kind: 'multi', rows: 3 },
   { defaultLabel: '施工者名', kind: 'single', rows: 1 },
 ];
 
 export const SLOT_CUSTOMER = 0;
+export const SLOT_PLACE = 1;
+export const SLOT_WORK = 2;
 export const SLOT_DATE = 4;
-export const SLOT_WORKER = 7;
+export const SLOT_WORKER = 6;
+
+/** 旧形式（8枠）で「次回への引継ぎ事項」だった位置 */
+export const LEGACY_HANDOVER_SLOT = 6;
 
 /** YYYY-MM-DD（input[type=date] 形式） */
 export function todayIsoDate(d = new Date()): string {
@@ -49,9 +53,15 @@ export function withToday(board: BoardContent): BoardContent {
   return board.map((item, i) => (i === SLOT_DATE ? { ...item, value: todayIsoDate() } : { ...item }));
 }
 
-/** 保存データの枠数が足りない場合などに8枠へ正規化する */
+/** 旧形式（8枠：引継ぎ事項あり）を現在の7枠に変換する */
+export function migrateLegacyBoard(board: BoardContent): BoardContent {
+  return board.length === 8 ? board.filter((_, i) => i !== LEGACY_HANDOVER_SLOT) : board;
+}
+
+/** 保存データの枠数が違う場合などに現在の枠数へ正規化する */
 export function normalizeBoard(board: BoardContent | null | undefined): BoardContent | null {
   if (!board) return null;
+  board = migrateLegacyBoard(board);
   return BOARD_SLOTS.map((slot, i) => ({
     label: board[i]?.label ?? slot.defaultLabel,
     value: board[i]?.value ?? '',

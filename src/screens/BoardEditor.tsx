@@ -4,19 +4,23 @@ import { BoardCanvas } from '../components/BoardCanvas';
 import { useElementWidth } from '../components/useElementWidth';
 import { db, newId, nowIso } from '../db';
 import { prefs } from '../lib/prefs';
-import type { BoardContent, CaptureMode } from '../types';
+import { HandoverField } from '../components/HandoverField';
+import type { BoardContent, CaptureMode, Handover } from '../types';
+import { Icon } from '../components/Icon';
 
 interface Props {
   board: BoardContent;
   onBoardChange: (b: BoardContent) => void;
   mode: CaptureMode;
   onModeChange: (m: CaptureMode) => void;
+  handover: Handover;
+  onHandoverChange: (h: Handover) => void;
   onBack: () => void;
   onOpenTemplates: () => void;
   onNext: () => void;
 }
 
-export function BoardEditor({ board, onBoardChange, mode, onModeChange, onBack, onOpenTemplates, onNext }: Props) {
+export function BoardEditor({ board, onBoardChange, mode, onModeChange, handover, onHandoverChange, onBack, onOpenTemplates, onNext }: Props) {
   const [wrapRef, width] = useElementWidth<HTMLDivElement>();
   const [editing, setEditing] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -25,9 +29,12 @@ export function BoardEditor({ board, onBoardChange, mode, onModeChange, onBack, 
   return (
     <div className="screen">
       <header className="appbar">
-        <button className="icon-btn" onClick={onBack} aria-label="戻る">←</button>
+        <button className="icon-btn" onClick={onBack} aria-label="戻る"><Icon name="back" /></button>
         <h1>黒板編集</h1>
-        <button className="text-btn" onClick={onOpenTemplates}>作成した黒板</button>
+        <button className="text-btn" onClick={onOpenTemplates}>
+          <Icon name="board" size={18} />
+          作成した黒板
+        </button>
       </header>
 
       <main className="screen-body editor-body">
@@ -58,6 +65,8 @@ export function BoardEditor({ board, onBoardChange, mode, onModeChange, onBack, 
           </fieldset>
         )}
         {mode === 'with_board' && <p className="hint">「両方」で保存すると、あとから黒板の誤字を直して写真を作り直せます</p>}
+
+        <HandoverField value={handover} onChange={onHandoverChange} />
       </main>
 
       <footer className="bottombar">

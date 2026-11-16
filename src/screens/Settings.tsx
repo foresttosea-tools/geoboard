@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { prefs } from '../lib/prefs';
+import { Icon } from '../components/Icon';
 
 interface Props {
   onBack: () => void;
@@ -25,7 +26,7 @@ export function Settings({ onBack }: Props) {
   return (
     <div className="screen">
       <header className="appbar">
-        <button className="icon-btn" onClick={onBack} aria-label="戻る">←</button>
+        <button className="icon-btn" onClick={onBack} aria-label="戻る"><Icon name="back" /></button>
         <h1>設定</h1>
         <span />
       </header>
@@ -63,6 +64,7 @@ export function Settings({ onBack }: Props) {
           <h2>サーバー接続</h2>
           <p className="hint">ステップ3で対応予定です。現在は端末内にのみ保存されます</p>
         </section>
+        <img src={`${import.meta.env.BASE_URL}brand/logo-horizontal.png`} alt="株式会社フォレストシー" className="settings-brand" />
         <p className="version">GeoBoard v{__APP_VERSION__}</p>
       </main>
     </div>

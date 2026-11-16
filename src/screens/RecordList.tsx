@@ -1,5 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
+import { SLOT_PLACE, SLOT_WORK, SLOT_WORKER } from '../blackboard/model';
+import { Icon } from '../components/Icon';
 import { useBlobUrl } from '../components/useBlobUrl';
 import { db } from '../db';
 import { prefs } from '../lib/prefs';
@@ -26,30 +28,37 @@ export function RecordList({ ledger, onShoot, onOpen, onSettings }: Props) {
 
   return (
     <div className="screen">
-      <header className="appbar">
-        <span />
-        <h1 title={ledger.name}>{ledger.name}</h1>
+      <header className="appbar appbar-home">
+        <img src={`${import.meta.env.BASE_URL}brand/logo-mark.png`} alt="" className="brand-mark" />
+        <div className="appbar-title">
+          <small>{ledger.customerName}</small>
+          <h1 title={ledger.name}>{ledger.name}</h1>
+        </div>
         <div className="appbar-actions">
           <button
-            className="text-btn"
+            className="icon-btn"
+            aria-label={view === 'list' ? 'グリッド表示' : 'リスト表示'}
             onClick={() => {
               const v = view === 'list' ? 'grid' : 'list';
               setView(v);
               prefs.setListView(v);
             }}
           >
-            {view === 'list' ? 'グリッド' : 'リスト'}
+            <Icon name={view === 'list' ? 'grid' : 'list'} />
           </button>
-          <button className="text-btn" onClick={onSettings}>設定</button>
+          <button className="icon-btn" aria-label="設定" onClick={onSettings}>
+            <Icon name="settings" />
+          </button>
         </div>
       </header>
 
       <div className="statusbar">
-        <span>
-          {ledger.customerName} / {sorted.length}件
+        <span className="status-count">
+          {sorted.length}件の記録
           {pending > 0 && <span className="badge badge-pending">未送信 {pending}</span>}
         </span>
-        <button className="text-btn small" onClick={() => setOrder(order === 'desc' ? 'asc' : 'desc')}>
+        <button className="chip" onClick={() => setOrder(order === 'desc' ? 'asc' : 'desc')}>
+          <Icon name="sort" size={14} />
           {order === 'desc' ? '新しい順' : '古い順'}
         </button>
       </div>
@@ -65,11 +74,11 @@ export function RecordList({ ledger, onShoot, onOpen, onSettings }: Props) {
                   <div className="rec-text">
                     <div className="rec-line1">
                       <span>{formatShotDate(r)}</span>
-                      <span className="rec-place">{r.board?.[1]?.value || '（作業場所なし）'}</span>
+                      <span className="rec-place">{r.board?.[SLOT_PLACE]?.value || '（作業場所なし）'}</span>
                     </div>
                     <div className="rec-line2">
-                      {r.board?.[2]?.value || (r.mode === 'without_board' ? '黒板なし' : '')}
-                      {r.board?.[7]?.value ? ` / ${r.board[7].value}` : ''}
+                      {r.board?.[SLOT_WORK]?.value || (r.mode === 'without_board' ? '黒板なし' : '')}
+                      {r.board?.[SLOT_WORKER]?.value ? ` / ${r.board[SLOT_WORKER].value}` : ''}
                     </div>
                     <Marks r={r} />
                   </div>
@@ -93,7 +102,10 @@ export function RecordList({ ledger, onShoot, onOpen, onSettings }: Props) {
       </main>
 
       <footer className="bottombar">
-        <button className="btn btn-primary btn-wide shoot-btn" onClick={onShoot}>撮影</button>
+        <button className="btn btn-primary btn-wide shoot-btn" onClick={onShoot}>
+          <Icon name="camera" />
+          撮影
+        </button>
       </footer>
     </div>
   );

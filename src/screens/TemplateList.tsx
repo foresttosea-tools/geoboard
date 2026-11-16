@@ -1,7 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
+import { SLOT_PLACE, SLOT_WORK } from '../blackboard/model';
 import { db, nowIso } from '../db';
 import type { BoardTemplate } from '../types';
+import { Icon } from '../components/Icon';
 
 interface Props {
   onBack: () => void;
@@ -21,7 +23,7 @@ export function TemplateList({ onBack, onPick }: Props) {
   return (
     <div className="screen">
       <header className="appbar">
-        <button className="icon-btn" onClick={onBack} aria-label="戻る">←</button>
+        <button className="icon-btn" onClick={onBack} aria-label="戻る"><Icon name="back" /></button>
         <h1>作成した黒板</h1>
         <span />
       </header>
@@ -47,7 +49,7 @@ export function TemplateList({ onBack, onPick }: Props) {
                 }}
               >
                 <strong>{t.name}</strong>
-                <span>{t.content[2]?.value || t.content[1]?.value || '（内容なし）'}</span>
+                <span>{t.content[SLOT_WORK]?.value || t.content[SLOT_PLACE]?.value || '（内容なし）'}</span>
               </button>
               <button
                 className="icon-btn danger"
@@ -56,7 +58,7 @@ export function TemplateList({ onBack, onPick }: Props) {
                   if (confirm(`「${t.name}」を削除しますか？`)) await db.templates.delete(t.id);
                 }}
               >
-                ×
+                <Icon name="trash" size={18} />
               </button>
             </li>
           ))}

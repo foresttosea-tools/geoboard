@@ -11,7 +11,9 @@ import { RecordDetail } from './screens/RecordDetail';
 import { RecordList } from './screens/RecordList';
 import { Settings } from './screens/Settings';
 import { TemplateList } from './screens/TemplateList';
-import type { BoardContent, CaptureMode, Ledger } from './types';
+import type { BoardContent, CaptureMode, Handover, Ledger } from './types';
+
+const EMPTY_HANDOVER: Handover = { text: '', inReport: false };
 
 type Screen =
   | { name: 'list' }
@@ -34,6 +36,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'list' });
   const [board, setBoard] = useState<BoardContent>(() => createDefaultBoard());
   const [mode, setMode] = useState<CaptureMode>('with_board');
+  const [handover, setHandover] = useState<Handover>(EMPTY_HANDOVER);
 
   useEffect(() => {
     requestPersistentStorage();
@@ -46,6 +49,8 @@ export default function App() {
     const fresh = (await db.ledgers.get(ledger.id)) ?? ledger;
     setLedger(fresh);
     setBoard(initialBoard(fresh));
+    // 引継ぎ事項は前回の内容を引き継がない
+    setHandover(EMPTY_HANDOVER);
     setScreen({ name: 'editor' });
   };
 
@@ -66,6 +71,8 @@ export default function App() {
           onBoardChange={setBoard}
           mode={mode}
           onModeChange={setMode}
+          handover={handover}
+          onHandoverChange={setHandover}
           onBack={() => setScreen({ name: 'list' })}
           onOpenTemplates={() => setScreen({ name: 'templates' })}
           onNext={() => {
@@ -110,6 +117,7 @@ export default function App() {
               ledgerId: ledger.id,
               mode,
               board,
+              handover,
               layout: screen.result.layout,
               photo: screen.result.photo,
               geo: screen.result.geo,

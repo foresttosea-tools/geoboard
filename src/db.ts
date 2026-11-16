@@ -1,4 +1,5 @@
 import Dexie, { type EntityTable } from 'dexie';
+import { LEGACY_HANDOVER_SLOT, migrateLegacyBoard } from './blackboard/model';
 import type { BoardTemplate, Ledger, StoredImage, WorkRecord } from './types';
 
 export const db = new Dexie('geoboard') as Dexie & {
@@ -14,6 +15,24 @@ db.version(1).stores({
   images: 'key, recordId',
   templates: 'id, name, lastUsedAt',
 });
+
+// v2：黒板から「次回への引継ぎ事項」を外し、作業記録の項目に移す
+db.version(2)
+  .stores({})
+  .upgrade(async (tx) => {
+    await tx.table('records').toCollection().modify((r) => {
+      const legacy = r.board?.length === 8 ? (r.board[LEGACY_HANDOVER_SLOT]?.value ?? '') : '';
+      r.handover = r.handover ?? legacy;
+      r.handoverInReport = r.handoverInReport ?? false;
+      if (r.board) r.board = migrateLegacyBoard(r.board);
+    });
+    await tx.table('templates').toCollection().modify((t) => {
+      t.content = migrateLegacyBoard(t.content);
+    });
+    await tx.table('ledgers').toCollection().modify((l) => {
+      if (l.lastBoard) l.lastBoard = migrateLegacyBoard(l.lastBoard);
+    });
+  });
 
 export const nowIso = () => new Date().toISOString();
 export const newId = () => crypto.randomUUID();

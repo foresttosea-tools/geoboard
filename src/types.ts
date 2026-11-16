@@ -4,7 +4,7 @@ export interface BoardItem {
   value: string;
 }
 
-/** 黒板の内容（8枠固定）。並び順は BOARD_SLOTS と対応する */
+/** 黒板の内容（7枠固定）。並び順は BOARD_SLOTS と対応する */
 export type BoardContent = BoardItem[];
 
 /** 撮影モード */
@@ -39,7 +39,12 @@ export interface WorkRecord {
   mode: CaptureMode;
   board: BoardContent | null;
   boardLayout: BoardLayout | null;
+  /** 補足・訂正用メモ */
   memo: string;
+  /** 次回への引継ぎ事項（黒板には載せない） */
+  handover: string;
+  /** 引継ぎ事項をレポートに載せるか */
+  handoverInReport: boolean;
   shotAt: string;
   shotDateNeedsCheck: boolean;
   source: 'camera' | 'import';
@@ -73,4 +78,10 @@ export interface BoardTemplate {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+}
+
+/** 次回への引継ぎ事項（黒板には載せない） */
+export interface Handover {
+  text: string;
+  inReport: boolean;
 }

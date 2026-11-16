@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { BOARD_ASPECT } from '../blackboard/render';
 import { BoardCanvas } from '../components/BoardCanvas';
+import { Icon } from '../components/Icon';
 import { useCamera } from '../lib/camera';
 import { clampLayout, defaultLayout, grabVideoFrame } from '../lib/image';
 import { prefs, type Orientation } from '../lib/prefs';
@@ -172,7 +173,7 @@ export function CameraScreen({ board, mode, onBack, onCaptured }: Props) {
   return (
     <div className={`camera camera-${orientation}`}>
       <div className="cam-topbar">
-        <button className="cam-btn" onClick={onBack} aria-label="戻る">←</button>
+        <button className="cam-btn" onClick={onBack} aria-label="戻る"><Icon name="back" /></button>
         <button
           className={`cam-btn ${showGrid ? 'on' : ''}`}
           onClick={() => {
