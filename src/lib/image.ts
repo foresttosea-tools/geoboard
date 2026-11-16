@@ -88,3 +88,42 @@ export function defaultLayout(photoW: number, photoH: number): BoardLayout {
   const hr = (w * photoW * BOARD_ASPECT) / photoH;
   return clampLayout({ x: margin, y: 1 - hr - margin * (photoW / photoH), w }, photoW, photoH);
 }
+
+/**
+ * 画像ファイル（Blob）を読み込み、長辺を上限内に縮小したCanvasを返す。
+ * <img> 経由で描画すると、ブラウザがExifの回転情報を反映してくれる
+ */
+export async function loadImageToCanvas(blob: Blob): Promise<HTMLCanvasElement> {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    const scale = Math.min(1, MAX_LONG_EDGE / Math.max(w, h));
+    const c = createCanvas(w * scale, h * scale);
+    const ctx = get2d(c);
+    // 透過PNG（スクリーンショットなど）がJPEG変換で黒くならないよう白で塗っておく
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/** 画像の縦横サイズ（Exifの回転を反映した表示上のサイズ） */
+export async function readImageSize(blob: Blob): Promise<{ w: number; h: number }> {
+  const url = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return { w: img.naturalWidth, h: img.naturalHeight };
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}

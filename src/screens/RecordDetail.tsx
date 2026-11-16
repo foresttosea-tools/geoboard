@@ -8,6 +8,7 @@ import { Icon } from '../components/Icon';
 import { Marks } from '../components/RecordMarks';
 import { useBlobUrl } from '../components/useBlobUrl';
 import { db, deleteRecord, nowIso } from '../db';
+import { canFixBoard } from '../lib/editRecord';
 import type { Handover, WorkRecord } from '../types';
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
   ids: string[];
   onNavigate: (id: string) => void;
   onBack: () => void;
+  onFixBoard: (id: string) => void;
 }
 
 const MODE_LABEL = { with_board: '黒板ありのみ', without_board: '黒板なしのみ', both: '黒板あり＋なし（両方）' } as const;
@@ -23,9 +25,10 @@ const MODE_LABEL = { with_board: '黒板ありのみ', without_board: '黒板な
 /** 横スワイプと判定する移動量（px） */
 const SWIPE_MIN = 60;
 
-const savedHandover = (r: WorkRecord): Handover => ({ text: r.handover ?? '', inReport: r.handoverInReport ?? false });
+type Notes = Handover & { memo: string };
+const savedNotes = (r: WorkRecord): Notes => ({ text: r.handover ?? '', inReport: r.handoverInReport ?? false, memo: r.memo ?? '' });
 
-export function RecordDetail({ id, ids, onNavigate, onBack }: Props) {
+export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props) {
   const record = useLiveQuery(() => db.records.get(id), [id]);
   const composite = useLiveQuery(() => db.images.get(`${id}:composite`), [id]);
   const original = useLiveQuery(() => db.images.get(`${id}:original`), [id]);
@@ -33,11 +36,11 @@ export function RecordDetail({ id, ids, onNavigate, onBack }: Props) {
   const blob = showOriginal ? original?.blob : (composite?.blob ?? original?.blob);
   const url = useBlobUrl(blob);
 
-  // 引継ぎ事項の編集中の内容。記録を切り替えたら破棄する
-  const [draft, setDraft] = useState<(Handover & { id: string }) | null>(null);
+  // 引継ぎ事項・メモの編集中の内容。記録を切り替えたら破棄する
+  const [draft, setDraft] = useState<(Notes & { id: string }) | null>(null);
   const [justSaved, setJustSaved] = useState(false);
   // 未保存のまま移動しようとしたときの移動先
-  const [pending, setPending] = useState<{ kind: 'back' } | { kind: 'go'; id: string; dir: 1 | -1 } | null>(null);
+  const [pending, setPending] = useState<{ kind: 'back' } | { kind: 'fix' } | { kind: 'go'; id: string; dir: 1 | -1 } | null>(null);
   const [slide, setSlide] = useState<'next' | 'prev' | null>(null);
 
   const index = ids.indexOf(id);
@@ -48,13 +51,12 @@ export function RecordDetail({ id, ids, onNavigate, onBack }: Props) {
 
   if (!record) return null;
 
-  const saved = savedHandover(record);
-  const handover = draft?.id === id ? draft : saved;
-  const dirty = handover.text !== saved.text || handover.inReport !== saved.inReport;
+  const saved = savedNotes(record);
+  const notes = draft?.id === id ? draft : saved;
+  const dirty = notes.text !== saved.text || notes.inReport !== saved.inReport || notes.memo !== saved.memo;
 
-  const saveHandover = async () => {
-    const text = handover.text.trim();
-    await db.records.update(id, { handover: text, handoverInReport: handover.inReport, updatedAt: nowIso() });
+  const saveNotes = async () => {
+    await db.records.update(id, { handover: notes.text.trim(), handoverInReport: notes.inReport, memo: notes.memo.trim(), updatedAt: nowIso() });
     setDraft(null);
     setJustSaved(true);
   };
@@ -66,6 +68,8 @@ export function RecordDetail({ id, ids, onNavigate, onBack }: Props) {
     setPending(null);
     if (target.kind === 'back') {
       onBack();
+    } else if (target.kind === 'fix') {
+      onFixBoard(id);
     } else {
       setSlide(target.dir === 1 ? 'next' : 'prev');
       onNavigate(target.id);
@@ -154,7 +158,7 @@ export function RecordDetail({ id, ids, onNavigate, onBack }: Props) {
             <dt>位置情報</dt>
             <dd>
               {record.latitude != null && record.longitude != null
-                ? `${record.latitude.toFixed(6)}, ${record.longitude.toFixed(6)}（±${Math.round(record.locationAccuracy ?? 0)}m）`
+                ? `${record.latitude.toFixed(6)}, ${record.longitude.toFixed(6)}${record.locationAccuracy ? `（±${Math.round(record.locationAccuracy)}m）` : ''}`
                 : 'なし'}
             </dd>
           </div>
@@ -165,20 +169,40 @@ export function RecordDetail({ id, ids, onNavigate, onBack }: Props) {
             </dd>
           </div>
         </dl>
+        {record.board && (
+          canFixBoard(record) ? (
+            <button className="btn btn-wide" onClick={() => requestMove({ kind: 'fix' })}>
+              <Icon name="edit" size={18} />
+              黒板を修正（写真を作り直す）
+            </button>
+          ) : (
+            <p className="hint">「黒板ありのみ」で保存したため、黒板の写真は修正できません。訂正はメモに書いてください</p>
+          )
+        )}
 
-        <div className="card">
+        <div className="card notes-card">
+          <label className="field">
+            <span>メモ（補足・訂正。レポートに載ります）</span>
+            <textarea
+              rows={3}
+              value={notes.memo}
+              onChange={(e) => {
+                setDraft({ ...notes, memo: e.target.value, id });
+                setJustSaved(false);
+              }}
+            />
+          </label>
           <HandoverField
-            value={handover}
+            value={notes}
             onChange={(h) => {
-              setDraft({ ...h, id });
+              setDraft({ ...notes, ...h, id });
               setJustSaved(false);
             }}
           />
-          <button className="btn btn-primary btn-wide" disabled={!dirty} onClick={saveHandover}>
-            {justSaved && !dirty ? '保存しました' : '引継ぎ事項を保存'}
+          <button className="btn btn-primary btn-wide" disabled={!dirty} onClick={saveNotes}>
+            {justSaved && !dirty ? '保存しました' : 'メモと引継ぎ事項を保存'}
           </button>
         </div>
-        <p className="hint">黒板の修正・メモの追記はステップ2で対応予定です</p>
       </main>
 
       {ids.length > 1 && (
@@ -201,7 +225,7 @@ export function RecordDetail({ id, ids, onNavigate, onBack }: Props) {
 
       {pending && (
         <ConfirmDialog
-          title="引継ぎ事項が保存されていません"
+          title="メモ・引継ぎ事項が保存されていません"
           message="編集中の内容は破棄されます。移動してもよろしいですか？"
           onDismiss={() => setPending(null)}
           actions={[
@@ -209,7 +233,7 @@ export function RecordDetail({ id, ids, onNavigate, onBack }: Props) {
               label: '保存して移動',
               variant: 'primary',
               onClick: async () => {
-                await saveHandover();
+                await saveNotes();
                 doMove(pending);
               },
             },

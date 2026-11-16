@@ -1,12 +1,19 @@
+import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { SLOT_CUSTOMER, SLOT_WORKER, createDefaultBoard, normalizeBoard, withToday } from './blackboard/model';
-import { db, ensureSampleLedger, requestPersistentStorage } from './db';
+import { db, requestPersistentStorage } from './db';
 import { prefs } from './lib/prefs';
+import { createLedger, updateLedger } from './lib/repo';
 import { saveCapture } from './lib/saveRecord';
 import { requestMotionPermission } from './lib/sensors';
 import { BoardEditor } from './screens/BoardEditor';
+import { BoardFix } from './screens/BoardFix';
 import { CameraScreen, type CaptureResult } from './screens/CameraScreen';
 import { CaptureConfirm } from './screens/CaptureConfirm';
+import { CustomerList } from './screens/CustomerList';
+import { ImportAdjust } from './screens/ImportAdjust';
+import { LedgerForm } from './screens/LedgerForm';
+import { LedgerList } from './screens/LedgerList';
 import { RecordDetail } from './screens/RecordDetail';
 import { RecordList } from './screens/RecordList';
 import { Settings } from './screens/Settings';
@@ -16,13 +23,19 @@ import type { BoardContent, CaptureMode, Handover, Ledger } from './types';
 const EMPTY_HANDOVER: Handover = { text: '', inReport: false };
 
 type Screen =
-  | { name: 'list' }
+  | { name: 'customers' }
+  | { name: 'ledgers'; customerId: string }
+  | { name: 'ledgerNew'; customerId: string }
+  | { name: 'ledgerEdit' }
+  | { name: 'records' }
   | { name: 'editor' }
   | { name: 'templates' }
   | { name: 'camera' }
   | { name: 'confirm'; result: CaptureResult }
+  | { name: 'import' }
   | { name: 'detail'; id: string; ids: string[] }
-  | { name: 'settings' };
+  | { name: 'boardFix'; id: string; ids: string[] }
+  | { name: 'settings'; from: Screen };
 
 /**
  * 施工者名を設定の値で上書きする（要件4.3：施工者名の初期値はログインユーザー名）。
@@ -35,43 +48,116 @@ function withCurrentWorker(board: BoardContent): BoardContent {
 }
 
 /** 黒板を開くときの初期内容：その台帳で最後に使った黒板。なければ初期値（要件6.4） */
-function initialBoard(ledger: Ledger): BoardContent {
+function initialBoard(ledger: Ledger, customerName: string): BoardContent {
   const last = normalizeBoard(ledger.lastBoard);
   if (last) return withCurrentWorker(withToday(last));
-  return createDefaultBoard({ customerName: ledger.customerName, worker: prefs.getWorkerName() });
+  return createDefaultBoard({ customerName, worker: prefs.getWorkerName() });
 }
 
 export default function App() {
-  const [ledger, setLedger] = useState<Ledger | null>(null);
-  const [screen, setScreen] = useState<Screen>({ name: 'list' });
+  // 前回開いていた台帳から再開する
+  const [ledgerId, setLedgerId] = useState<string | null>(() => prefs.getLastLedger());
+  const [screen, setScreen] = useState<Screen>(() => (prefs.getLastLedger() ? { name: 'records' } : { name: 'customers' }));
   const [board, setBoard] = useState<BoardContent>(() => createDefaultBoard());
   const [mode, setMode] = useState<CaptureMode>('with_board');
   const [handover, setHandover] = useState<Handover>(EMPTY_HANDOVER);
+  // 黒板編集のあと、撮影に進むか取り込みに進むか
+  const [importFiles, setImportFiles] = useState<File[] | null>(null);
+
+  // 直前の台帳の結果が一瞬残るため、どのIDで読んだ結果かを持たせて照合する
+  const ledgerRes = useLiveQuery(async () => ({ id: ledgerId, value: ledgerId ? ((await db.ledgers.get(ledgerId)) ?? null) : null }), [ledgerId]);
+  const ledger = ledgerRes && ledgerRes.id === ledgerId ? ledgerRes.value : undefined;
+  const customerId = ledger?.customerId ?? null;
+  const customerRes = useLiveQuery(async () => ({ id: customerId, value: customerId ? ((await db.customers.get(customerId)) ?? null) : null }), [customerId]);
+  const customer = customerRes && customerRes.id === customerId ? customerRes.value : undefined;
 
   useEffect(() => {
     requestPersistentStorage();
-    ensureSampleLedger().then(setLedger);
   }, []);
 
-  if (!ledger) return <div className="splash">GeoBoard</div>;
+  // 開いていた台帳が削除されていたら顧客一覧に戻す
+  const ledgerMissing = ledger === null || ledger?.deletedAt != null;
+  useEffect(() => {
+    if (ledgerMissing) prefs.setLastLedger(null);
+  }, [ledgerMissing]);
 
-  const openEditor = async () => {
-    const fresh = (await db.ledgers.get(ledger.id)) ?? ledger;
-    setLedger(fresh);
-    setBoard(initialBoard(fresh));
+  const openLedger = (id: string) => {
+    setLedgerId(id);
+    prefs.setLastLedger(id);
+    setScreen({ name: 'records' });
+  };
+  const leaveLedger = () => {
+    prefs.setLastLedger(null);
+    setScreen(ledger ? { name: 'ledgers', customerId: ledger.customerId } : { name: 'customers' });
+  };
+
+  // 台帳を扱う画面で、台帳がまだ読み込まれていない・見つからない場合
+  const needsLedger = !['customers', 'ledgers', 'ledgerNew', 'settings'].includes(screen.name);
+  if (needsLedger) {
+    if (ledger === undefined || (ledger && customer === undefined)) return <div className="splash">GeoBoard</div>;
+    if (ledgerMissing) {
+      return <CustomerList onOpen={(id) => setScreen({ name: 'ledgers', customerId: id })} onSettings={() => setScreen({ name: 'settings', from: { name: 'customers' } })} />;
+    }
+  }
+  const customerName = customer?.name ?? '';
+
+  const openEditor = (files: File[] | null) => {
+    if (!ledger) return;
+    setBoard(initialBoard(ledger, customerName));
     // 引継ぎ事項は前回の内容を引き継がない
     setHandover(EMPTY_HANDOVER);
+    setImportFiles(files);
     setScreen({ name: 'editor' });
   };
 
   switch (screen.name) {
-    case 'list':
+    case 'customers':
+      return (
+        <CustomerList
+          onOpen={(id) => setScreen({ name: 'ledgers', customerId: id })}
+          onSettings={() => setScreen({ name: 'settings', from: screen })}
+        />
+      );
+    case 'ledgers':
+      return (
+        <LedgerList
+          customerId={screen.customerId}
+          onBack={() => setScreen({ name: 'customers' })}
+          onOpen={openLedger}
+          onCreate={() => setScreen({ name: 'ledgerNew', customerId: screen.customerId })}
+        />
+      );
+    case 'ledgerNew':
+      return (
+        <LedgerNewScreen
+          customerId={screen.customerId}
+          onBack={() => setScreen({ name: 'ledgers', customerId: screen.customerId })}
+          onCreated={openLedger}
+        />
+      );
+    case 'ledgerEdit':
+      return (
+        <LedgerForm
+          title="台帳情報"
+          customerName={customerName}
+          initial={ledger!}
+          onBack={() => setScreen({ name: 'records' })}
+          onSave={async (input) => {
+            await updateLedger(ledger!.id, input);
+            setScreen({ name: 'records' });
+          }}
+        />
+      );
+    case 'records':
       return (
         <RecordList
-          ledger={ledger}
-          onShoot={openEditor}
+          ledger={ledger!}
+          customerName={customerName}
+          onBack={leaveLedger}
+          onEditLedger={() => setScreen({ name: 'ledgerEdit' })}
+          onShoot={() => openEditor(null)}
+          onImport={(files) => openEditor(files)}
           onOpen={(id, ids) => setScreen({ name: 'detail', id, ids })}
-          onSettings={() => setScreen({ name: 'settings' })}
         />
       );
     case 'editor':
@@ -83,9 +169,15 @@ export default function App() {
           onModeChange={setMode}
           handover={handover}
           onHandoverChange={setHandover}
-          onBack={() => setScreen({ name: 'list' })}
+          nextLabel={importFiles ? `${importFiles.length}枚の写真に黒板を配置` : '撮影に進む'}
+          dateHint={importFiles ? '撮影日は写真ごとに、写真の撮影日時から自動で入ります' : undefined}
+          onBack={() => setScreen({ name: 'records' })}
           onOpenTemplates={() => setScreen({ name: 'templates' })}
           onNext={() => {
+            if (importFiles) {
+              setScreen({ name: 'import' });
+              return;
+            }
             // iOSの傾きセンサー許可はタップ操作の中で求める必要がある
             requestMotionPermission();
             setScreen({ name: 'camera' });
@@ -98,8 +190,8 @@ export default function App() {
           onBack={() => setScreen({ name: 'editor' })}
           onPick={(t) => {
             const picked = withCurrentWorker(withToday(normalizeBoard(t.content) ?? createDefaultBoard()));
-            // 顧客名が空なら台帳の値で補う
-            if (!picked[SLOT_CUSTOMER].value) picked[SLOT_CUSTOMER].value = ledger.customerName;
+            // 顧客名が空なら台帳の顧客名で補う
+            if (!picked[SLOT_CUSTOMER].value) picked[SLOT_CUSTOMER].value = customerName;
             setBoard(picked);
             setScreen({ name: 'editor' });
           }}
@@ -123,7 +215,7 @@ export default function App() {
           onRetake={() => setScreen({ name: 'camera' })}
           onSave={async () => {
             await saveCapture({
-              ledgerId: ledger.id,
+              ledgerId: ledger!.id,
               mode,
               board,
               handover,
@@ -133,7 +225,22 @@ export default function App() {
               shotAt: screen.result.shotAt,
               source: 'camera',
             });
-            setScreen({ name: 'list' });
+            setScreen({ name: 'records' });
+          }}
+        />
+      );
+    case 'import':
+      return (
+        <ImportAdjust
+          files={importFiles ?? []}
+          ledgerId={ledger!.id}
+          board={board}
+          mode={mode}
+          handover={handover}
+          onBack={() => setScreen({ name: 'editor' })}
+          onDone={() => {
+            setImportFiles(null);
+            setScreen({ name: 'records' });
           }}
         />
       );
@@ -143,10 +250,28 @@ export default function App() {
           id={screen.id}
           ids={screen.ids}
           onNavigate={(id) => setScreen({ ...screen, id })}
-          onBack={() => setScreen({ name: 'list' })}
+          onBack={() => setScreen({ name: 'records' })}
+          onFixBoard={(id) => setScreen({ name: 'boardFix', id, ids: screen.ids })}
         />
       );
+    case 'boardFix':
+      return <BoardFix recordId={screen.id} onBack={() => setScreen({ name: 'detail', id: screen.id, ids: screen.ids })} />;
     case 'settings':
-      return <Settings onBack={() => setScreen({ name: 'list' })} />;
+      return <Settings onBack={() => setScreen(screen.from)} />;
   }
+}
+
+function LedgerNewScreen({ customerId, onBack, onCreated }: { customerId: string; onBack: () => void; onCreated: (id: string) => void }) {
+  const customer = useLiveQuery(() => db.customers.get(customerId), [customerId]);
+  return (
+    <LedgerForm
+      title="台帳を追加"
+      customerName={customer?.name ?? ''}
+      onBack={onBack}
+      onSave={async (input) => {
+        const l = await createLedger(customerId, input);
+        onCreated(l.id);
+      }}
+    />
+  );
 }

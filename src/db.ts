@@ -1,8 +1,9 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { LEGACY_HANDOVER_SLOT, migrateLegacyBoard } from './blackboard/model';
-import type { BoardTemplate, ExtraPhoto, Ledger, StoredImage, WorkRecord } from './types';
+import type { BoardTemplate, Customer, ExtraPhoto, Ledger, StoredImage, WorkRecord } from './types';
 
 export const db = new Dexie('geoboard') as Dexie & {
+  customers: EntityTable<Customer, 'id'>;
   ledgers: EntityTable<Ledger, 'id'>;
   records: EntityTable<WorkRecord, 'id'>;
   images: EntityTable<StoredImage, 'key'>;
@@ -40,30 +41,33 @@ db.version(3).stores({
   extras: 'id, recordId, createdAt',
 });
 
+// v4：顧客を追加し、台帳は顧客IDで紐づける。旧台帳の顧客名から顧客を作る
+db.version(4)
+  .stores({
+    customers: 'id, name, updatedAt',
+    ledgers: 'id, customerId, updatedAt',
+  })
+  .upgrade(async (tx) => {
+    const t = new Date().toISOString();
+    const byName = new Map<string, string>();
+    const ledgers = await tx.table('ledgers').toArray();
+    for (const l of ledgers) {
+      if (l.customerId) continue;
+      const name: string = l.customerName || '未分類';
+      let customerId = byName.get(name);
+      if (!customerId) {
+        customerId = crypto.randomUUID();
+        byName.set(name, customerId);
+        await tx.table('customers').add({
+          id: customerId, code: null, name, isProvisional: false, createdBy: '', createdAt: t, updatedAt: t, deletedAt: null,
+        });
+      }
+      await tx.table('ledgers').update(l.id, { customerId, customerName: undefined, createdBy: l.createdBy ?? '', deletedAt: l.deletedAt ?? null });
+    }
+  });
+
 export const nowIso = () => new Date().toISOString();
 export const newId = () => crypto.randomUUID();
-
-/** ステップ1用：台帳管理（ステップ2）ができるまでの仮の台帳 */
-export const SAMPLE_LEDGER_ID = '00000000-0000-4000-8000-000000000001';
-
-export async function ensureSampleLedger(): Promise<Ledger> {
-  const existing = await db.ledgers.get(SAMPLE_LEDGER_ID);
-  if (existing) return existing;
-  const ledger: Ledger = {
-    id: SAMPLE_LEDGER_ID,
-    customerName: 'サンプル町役場',
-    name: 'テスト台帳（ステップ1）',
-    startDate: '',
-    endDate: '',
-    manager: '',
-    note: '',
-    lastBoard: null,
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-  };
-  await db.ledgers.put(ledger);
-  return ledger;
-}
 
 /** 端末ストレージの永続化を要求する（要件7.1） */
 export async function requestPersistentStorage(): Promise<boolean> {

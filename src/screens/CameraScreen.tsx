@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BOARD_ASPECT } from '../blackboard/render';
 import { BoardCanvas } from '../components/BoardCanvas';
 import { Icon } from '../components/Icon';
+import { containRect, useBoardGestures } from '../components/useBoardGestures';
 import { useCamera } from '../lib/camera';
 import { clampLayout, defaultLayout, grabVideoFrame } from '../lib/image';
 import { prefs, type Orientation } from '../lib/prefs';
@@ -21,21 +21,6 @@ interface Props {
   onBack: () => void;
   onCaptured: (r: CaptureResult) => void;
 }
-
-interface Rect {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
-
-type Gesture =
-  | { kind: 'board-move'; startX: number; startY: number; start: BoardLayout }
-  | { kind: 'board-pinch'; startDist: number; start: BoardLayout }
-  | { kind: 'zoom'; startDist: number; startZoom: number }
-  | null;
-
-const dist = (a: PointerEvent, b: PointerEvent) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
 
 export function CameraScreen({ board, mode, onBack, onCaptured }: Props) {
   const { videoRef, ready, error, hardwareZoom, zoom, setZoom, digitalZoom } = useCamera(true);
@@ -73,13 +58,7 @@ export function CameraScreen({ board, mode, onBack, onCaptured }: Props) {
   }, [videoRef, ready]);
 
   /** 画面内に収めた映像の表示範囲（＝撮影される範囲） */
-  const rect: Rect | null = useMemo(() => {
-    if (!vfSize.w || !videoSize.w) return null;
-    const s = Math.min(vfSize.w / videoSize.w, vfSize.h / videoSize.h);
-    const width = videoSize.w * s;
-    const height = videoSize.h * s;
-    return { left: (vfSize.w - width) / 2, top: (vfSize.h - height) / 2, width, height };
-  }, [vfSize, videoSize]);
+  const rect = useMemo(() => containRect(vfSize.w, vfSize.h, videoSize.w, videoSize.h), [vfSize, videoSize]);
 
   const orientation: Orientation = videoSize.w >= videoSize.h ? 'landscape' : 'portrait';
 
@@ -91,67 +70,21 @@ export function CameraScreen({ board, mode, onBack, onCaptured }: Props) {
     setLayout(clampLayout(saved ?? defaultLayout(videoSize.w, videoSize.h), videoSize.w, videoSize.h));
   }, [orientation, videoSize.w, videoSize.h]);
 
-  const layoutRef = useRef(layout);
-  useEffect(() => {
-    layoutRef.current = layout;
-  }, [layout]);
-
-  // ジェスチャー：黒板の上で始まった操作は黒板の移動・拡縮、それ以外のピンチはズーム
-  const pointers = useRef(new Map<number, PointerEvent>());
-  const gesture = useRef<Gesture>(null);
-
-  const isOnBoard = (e: React.PointerEvent) => (e.target as HTMLElement).closest('.cam-board') != null;
-
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-    pointers.current.set(e.pointerId, e.nativeEvent);
-    const pts = [...pointers.current.values()];
-    const l = layoutRef.current;
-    if (pts.length === 1) {
-      gesture.current = boardOn && l && isOnBoard(e) ? { kind: 'board-move', startX: e.clientX, startY: e.clientY, start: l } : null;
-    } else if (pts.length === 2) {
-      const d = dist(pts[0], pts[1]);
-      if (gesture.current?.kind === 'board-move' && l) {
-        gesture.current = { kind: 'board-pinch', startDist: d, start: l };
-      } else {
-        gesture.current = { kind: 'zoom', startDist: d, startZoom: zoom };
-      }
-    }
-  };
-
-  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!pointers.current.has(e.pointerId)) return;
-    pointers.current.set(e.pointerId, e.nativeEvent);
-    const g = gesture.current;
-    if (!g || !rect || !videoSize.w) return;
-    const pts = [...pointers.current.values()];
-    if (g.kind === 'board-move') {
-      const nx = g.start.x + (e.clientX - g.startX) / rect.width;
-      const ny = g.start.y + (e.clientY - g.startY) / rect.height;
-      setLayout(clampLayout({ ...g.start, x: nx, y: ny }, videoSize.w, videoSize.h));
-    } else if (g.kind === 'board-pinch' && pts.length >= 2) {
-      const scale = dist(pts[0], pts[1]) / g.startDist;
-      const w = g.start.w * scale;
-      // 黒板の中心を保ったまま拡縮
-      const startHr = (g.start.w * videoSize.w * BOARD_ASPECT) / videoSize.h;
-      const hr = (w * videoSize.w * BOARD_ASPECT) / videoSize.h;
-      const cx = g.start.x + g.start.w / 2;
-      const cy = g.start.y + startHr / 2;
-      setLayout(clampLayout({ x: cx - w / 2, y: cy - hr / 2, w }, videoSize.w, videoSize.h));
-    } else if (g.kind === 'zoom' && pts.length >= 2) {
-      setZoom(g.startZoom * (dist(pts[0], pts[1]) / g.startDist));
-    }
-  };
-
-  const onPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
-    pointers.current.delete(e.pointerId);
-    const g = gesture.current;
-    if ((g?.kind === 'board-move' || g?.kind === 'board-pinch') && layoutRef.current) {
-      prefs.setLayout(orientation, layoutRef.current);
-    }
-    if (pointers.current.size === 0) gesture.current = null;
-    else if (g?.kind === 'board-pinch') gesture.current = null;
-  };
+  // 黒板の上で始まった操作は黒板の移動・拡縮、それ以外のピンチはズーム
+  const zoomStart = useRef(zoom);
+  const gestures = useBoardGestures({
+    enabled: boardOn,
+    rect,
+    imageW: videoSize.w,
+    imageH: videoSize.h,
+    layout,
+    onChange: setLayout,
+    onCommit: (l) => prefs.setLayout(orientation, l),
+    onOtherPinchStart: () => {
+      zoomStart.current = zoom;
+    },
+    onOtherPinch: (scale) => setZoom(zoomStart.current * scale),
+  });
 
   const [busy, setBusy] = useState(false);
   const shoot = async () => {
@@ -200,10 +133,7 @@ export function CameraScreen({ board, mode, onBack, onCaptured }: Props) {
       <div
         className="viewfinder"
         ref={vfRef}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        {...gestures}
       >
         <div className="cam-frame" style={rect ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height } : { inset: 0 }}>
           <video
@@ -220,7 +150,7 @@ export function CameraScreen({ board, mode, onBack, onCaptured }: Props) {
             </div>
           )}
           {boardOn && boardPx && boardPx.width > 0 && (
-            <div className="cam-board" style={{ left: boardPx.left, top: boardPx.top, width: boardPx.width }}>
+            <div className="cam-board overlay-board" style={{ left: boardPx.left, top: boardPx.top, width: boardPx.width }}>
               <BoardCanvas board={board} width={Math.round(boardPx.width)} />
             </div>
           )}

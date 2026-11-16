@@ -18,9 +18,13 @@ interface Props {
   onBack: () => void;
   onOpenTemplates: () => void;
   onNext: () => void;
+  /** 次へ進むボタンの文言 */
+  nextLabel?: string;
+  /** 撮影日についての補足（写真から登録するとき） */
+  dateHint?: string;
 }
 
-export function BoardEditor({ board, onBoardChange, mode, onModeChange, handover, onHandoverChange, onBack, onOpenTemplates, onNext }: Props) {
+export function BoardEditor({ board, onBoardChange, mode, onModeChange, handover, onHandoverChange, onBack, onOpenTemplates, onNext, nextLabel = '撮影に進む', dateHint }: Props) {
   const [wrapRef, width] = useElementWidth<HTMLDivElement>();
   const [editing, setEditing] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
@@ -43,6 +47,7 @@ export function BoardEditor({ board, onBoardChange, mode, onModeChange, handover
           {!boardOn && <div className="board-off-label">黒板オフ</div>}
         </div>
         {boardOn && <p className="hint">項目をタップすると、項目名と内容を編集できます</p>}
+        {boardOn && dateHint && <p className="hint">{dateHint}</p>}
 
         <div className="row-actions">
           <button className="btn" disabled={!boardOn} onClick={() => setSaving(true)}>この黒板を保存</button>
@@ -70,7 +75,7 @@ export function BoardEditor({ board, onBoardChange, mode, onModeChange, handover
       </main>
 
       <footer className="bottombar">
-        <button className="btn btn-primary btn-wide" onClick={onNext}>撮影に進む</button>
+        <button className="btn btn-primary btn-wide" onClick={onNext}>{nextLabel}</button>
       </footer>
 
       {editing != null && (
@@ -99,7 +104,7 @@ export function BoardEditor({ board, onBoardChange, mode, onModeChange, handover
   );
 }
 
-function ItemEditSheet({ slot, board, onCancel, onApply }: { slot: number; board: BoardContent; onCancel: () => void; onApply: (label: string, value: string) => void }) {
+export function ItemEditSheet({ slot, board, onCancel, onApply }: { slot: number; board: BoardContent; onCancel: () => void; onApply: (label: string, value: string) => void }) {
   const def = BOARD_SLOTS[slot];
   const [label, setLabel] = useState(board[slot].label);
   const [value, setValue] = useState(board[slot].value);

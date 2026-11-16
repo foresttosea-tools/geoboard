@@ -20,17 +20,33 @@ export interface BoardLayout {
   w: number;
 }
 
+export interface Customer {
+  id: string;
+  /** 顧客コード（サーバーで採番。ステップ3まではnull） */
+  code: string | null;
+  name: string;
+  /** 仮顧客（圏外で作成した未確定の顧客。ステップ3で使用） */
+  isProvisional: boolean;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
 export interface Ledger {
   id: string;
-  customerName: string;
+  customerId: string;
+  /** 工事名称 */
   name: string;
   startDate: string;
   endDate: string;
   manager: string;
   note: string;
   lastBoard: BoardContent | null;
+  createdBy: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
 }
 
 export interface WorkRecord {

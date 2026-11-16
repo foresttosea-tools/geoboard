@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { SLOT_PLACE, SLOT_WORK, SLOT_WORKER } from '../blackboard/model';
 import { Icon } from '../components/Icon';
 import { useBlobUrl } from '../components/useBlobUrl';
@@ -10,13 +10,18 @@ import type { Ledger } from '../types';
 
 interface Props {
   ledger: Ledger;
+  customerName: string;
+  onBack: () => void;
+  onEditLedger: () => void;
   onShoot: () => void;
+  /** 端末の写真を選んだとき（S12） */
+  onImport: (files: File[]) => void;
   /** ids は一覧の並び順。詳細画面で前後の記録に移動するのに使う */
   onOpen: (id: string, ids: string[]) => void;
-  onSettings: () => void;
 }
 
-export function RecordList({ ledger, onShoot, onOpen, onSettings }: Props) {
+export function RecordList({ ledger, customerName, onBack, onEditLedger, onShoot, onImport, onOpen }: Props) {
+  const fileInput = useRef<HTMLInputElement>(null);
   const [view, setView] = useState(prefs.getListView());
   const [order, setOrder] = useState(prefs.getListOrder());
   const records = useLiveQuery(() => db.records.where('ledgerId').equals(ledger.id).filter((r) => !r.deletedAt).toArray(), [ledger.id]);
@@ -29,10 +34,12 @@ export function RecordList({ ledger, onShoot, onOpen, onSettings }: Props) {
 
   return (
     <div className="screen">
-      <header className="appbar appbar-home">
-        <img src={`${import.meta.env.BASE_URL}brand/logo-mark.png`} alt="" className="brand-mark" />
+      <header className="appbar appbar-sub">
+        <button className="icon-btn" onClick={onBack} aria-label="戻る">
+          <Icon name="back" />
+        </button>
         <div className="appbar-title">
-          <small>{ledger.customerName}</small>
+          <small>{customerName}</small>
           <h1 title={ledger.name}>{ledger.name}</h1>
         </div>
         <div className="appbar-actions">
@@ -47,8 +54,8 @@ export function RecordList({ ledger, onShoot, onOpen, onSettings }: Props) {
           >
             <Icon name={view === 'list' ? 'grid' : 'list'} />
           </button>
-          <button className="icon-btn" aria-label="設定" onClick={onSettings}>
-            <Icon name="settings" />
+          <button className="icon-btn" aria-label="台帳情報" onClick={onEditLedger}>
+            <Icon name="info" />
           </button>
         </div>
       </header>
@@ -107,10 +114,26 @@ export function RecordList({ ledger, onShoot, onOpen, onSettings }: Props) {
       </main>
 
       <footer className="bottombar">
-        <button className="btn btn-primary btn-wide shoot-btn" onClick={onShoot}>
+        <button className="btn shoot-btn import-btn" onClick={() => fileInput.current?.click()}>
+          <Icon name="image" />
+          写真から登録
+        </button>
+        <button className="btn btn-primary shoot-btn" onClick={onShoot}>
           <Icon name="camera" />
           撮影
         </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            e.target.value = '';
+            if (files.length) onImport(files);
+          }}
+        />
       </footer>
     </div>
   );
