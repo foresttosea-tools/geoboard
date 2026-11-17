@@ -50,7 +50,7 @@ export function LedgerForm({ title, customerName, initial, onBack, onSave }: Pro
         </p>
         <label className="field">
           <span>工事名称（必須）</span>
-          <input value={v.name} onChange={(e) => set('name', e.target.value)} placeholder="例：GeoChat中継器設置工事" autoFocus={!initial} />
+          <input value={v.name} onChange={(e) => set('name', e.target.value)} placeholder="例：インフラ設置工事" autoFocus={!initial} />
         </label>
         <div className="field-row">
           <label className="field">

@@ -445,7 +445,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 .user-actions .btn { min-height: 40px; padding: 0 12px; font-size: 13px; }
 .card-main strong .badge { margin: 0 6px 0 0; vertical-align: 2px; }
 .detail-img { position: relative; }
-.detail-img-note { position: absolute; left: 8px; bottom: 8px; padding: 4px 10px; border-radius: 999px; background: rgba(0,0,0,0.6); color: #fff; font-size: 12px; }
+.detail-img-note { position: absolute; left: 8px; right: 8px; bottom: 8px; width: fit-content; max-width: calc(100% - 16px); padding: 4px 10px; border-radius: 12px; line-height: 1.5; background: rgba(0,0,0,0.6); color: #fff; font-size: 12px; }
 
 /* ---------- 撮影日の確認 ---------- */
 .import-date.needs-check input { border: 2px solid #f2c230; box-shadow: 0 0 0 3px rgba(242, 194, 48, 0.25); }

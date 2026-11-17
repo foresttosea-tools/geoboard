@@ -64,7 +64,7 @@ const URL_ = 'http://localhost:4173/geoboard/';
   await A.getByRole('button', { name: '顧客を追加' }).click();
   await A.getByPlaceholder('例：〇〇町役場').fill('テスト市役所'); await A.getByRole('button', { name: '保存', exact: true }).click();
   await A.getByRole('button', { name: '台帳を追加' }).click();
-  await A.getByPlaceholder('例：GeoChat中継器設置工事').fill('中継器設置工事'); await A.getByRole('button', { name: '保存', exact: true }).click();
+  await A.getByPlaceholder('例：インフラ設置工事').fill('中継器設置工事'); await A.getByRole('button', { name: '保存', exact: true }).click();
   await A.waitForSelector('text=まだ記録がありません');
   await shoot(A, 'both');
   await waitSynced(A);

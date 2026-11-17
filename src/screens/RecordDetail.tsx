@@ -116,7 +116,7 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
         <div className="detail-img">
           {url && <img src={url} alt="作業記録の写真" draggable={false} />}
           {!image.url && (image.loading || image.error) && (
-            <span className="detail-img-note">{image.error ? '圏外のため縮小版を表示しています' : '写真を読み込んでいます…'}</span>
+            <span className="detail-img-note">{image.error ? '写真を取得できないため縮小版を表示しています（圏外か、サーバーに写真がありません）' : '写真を読み込んでいます…'}</span>
           )}
         </div>
         {record.mode === 'both' && (
