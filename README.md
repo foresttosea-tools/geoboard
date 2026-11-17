@@ -4,6 +4,7 @@
 
 - 要件定義書：[docs/requirements.md](docs/requirements.md)
 - 画面一覧・画面遷移：[docs/screens.md](docs/screens.md)
+- サーバーの準備と引っ越し：[docs/server.md](docs/server.md)
 
 ## 開発
 
@@ -24,6 +25,6 @@ npm run preview  # ビルド結果の確認
 
 - [x] ステップ1：黒板と撮影（オフライン）
 - [x] ステップ2：顧客・台帳・作業記録の管理
-- [ ] ステップ3：Supabaseとの同期
+- [x] ステップ3：Supabaseとの同期（仮顧客の確定・管理者への通知はステップ5のPC管理画面で対応）
 - [ ] ステップ4：重複検出・統合、衝突処理
 - [ ] ステップ5：PC管理画面

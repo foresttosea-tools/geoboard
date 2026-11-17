@@ -95,7 +95,7 @@ export function BoardEditor({ board, onBoardChange, mode, onModeChange, handover
           onCancel={() => setSaving(false)}
           onSave={async (name) => {
             const t = nowIso();
-            await db.templates.add({ id: newId(), name, content: board, lastUsedAt: t, createdBy: prefs.getWorkerName(), createdAt: t, updatedAt: t });
+            await db.templates.add({ id: newId(), name, content: board, lastUsedAt: t, createdBy: prefs.getUserId(), createdAt: t, updatedAt: t, deletedAt: null, syncStatus: 'pending' });
             setSaving(false);
           }}
         />

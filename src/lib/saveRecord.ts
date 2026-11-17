@@ -49,7 +49,7 @@ export async function saveCapture(input: SaveInput): Promise<WorkRecord> {
     imageWidth: photo.width,
     imageHeight: photo.height,
     syncStatus: 'pending',
-    createdBy: prefs.getWorkerName(),
+    createdBy: prefs.getUserId(),
     createdAt: t,
     updatedAt: t,
     deletedAt: null,

@@ -34,11 +34,17 @@ export const prefs = {
   setLedgerSort: (v: 'updated' | 'start' | 'name') => write('ledgerSort', v),
   getLastLedger: () => read<string | null>('lastLedger', null),
   setLastLedger: (v: string | null) => write('lastLedger', v),
+  /** 未送信の警告を出すまでの日数（要件6.8） */
+  getUnsentWarnDays: () => read<number>('unsentWarnDays', 3),
+  setUnsentWarnDays: (v: number) => write('unsentWarnDays', v),
   getGrid: () => read<boolean>('cameraGrid', false),
   setGrid: (v: boolean) => write('cameraGrid', v),
   getLevel: () => read<boolean>('cameraLevel', true),
   setLevel: (v: boolean) => write('cameraLevel', v),
-  /** ログイン機能（ステップ3）ができるまでの仮の施工者名 */
+  /** ログイン中のユーザーID（オフラインでも作成者を記録するため） */
+  getUserId: () => read<string>('userId', ''),
+  setUserId: (v: string) => write('userId', v),
+  /** 黒板の施工者名の初期値。ログイン中はプロフィールの表示名と同期する */
   getWorkerName: () => read<string>('workerName', ''),
   setWorkerName: (v: string) => write('workerName', v),
 };

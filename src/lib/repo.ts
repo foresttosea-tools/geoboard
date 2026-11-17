@@ -2,18 +2,22 @@ import { db, newId, nowIso } from '../db';
 import type { Customer, Ledger } from '../types';
 import { prefs } from './prefs';
 
-/** 顧客を作成する。ステップ3まではオフラインでも作成でき、顧客コードは未採番（null） */
-export async function createCustomer(name: string): Promise<Customer> {
+/**
+ * 顧客を作成する。顧客コードはサーバーへ送信した時点で採番される。
+ * 圏外では仮顧客として作成し、管理者があとで確定する（要件6.1）
+ */
+export async function createCustomer(name: string, provisional = false): Promise<Customer> {
   const t = nowIso();
   const c: Customer = {
     id: newId(),
     code: null,
     name: name.trim(),
-    isProvisional: false,
-    createdBy: prefs.getWorkerName(),
+    isProvisional: provisional,
+    createdBy: prefs.getUserId(),
     createdAt: t,
     updatedAt: t,
     deletedAt: null,
+    syncStatus: 'pending',
   };
   await db.customers.add(c);
   return c;
@@ -32,10 +36,11 @@ export async function createLedger(customerId: string, input: LedgerInput): Prom
     customerId,
     ...trimLedger(input),
     lastBoard: null,
-    createdBy: prefs.getWorkerName(),
+    createdBy: prefs.getUserId(),
     createdAt: t,
     updatedAt: t,
     deletedAt: null,
+    syncStatus: 'pending',
   };
   await db.ledgers.add(l);
   return l;

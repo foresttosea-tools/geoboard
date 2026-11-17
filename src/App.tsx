@@ -2,6 +2,10 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { SLOT_CUSTOMER, SLOT_WORKER, createDefaultBoard, normalizeBoard, withToday } from './blackboard/model';
 import { db, requestPersistentStorage } from './db';
+import { getProvider } from './sync/config';
+import { resetSyncState } from './sync/engine';
+import { useAuthSession, useSyncState } from './sync/hooks';
+import { Login } from './screens/Login';
 import { prefs } from './lib/prefs';
 import { createLedger, updateLedger } from './lib/repo';
 import { saveCapture } from './lib/saveRecord';
@@ -18,6 +22,7 @@ import { RecordDetail } from './screens/RecordDetail';
 import { RecordList } from './screens/RecordList';
 import { Settings } from './screens/Settings';
 import { TemplateList } from './screens/TemplateList';
+import type { AuthSession } from './sync/provider';
 import type { BoardContent, CaptureMode, Handover, Ledger } from './types';
 
 const EMPTY_HANDOVER: Handover = { text: '', inReport: false };
@@ -55,6 +60,27 @@ function initialBoard(ledger: Ledger, customerName: string): BoardContent {
 }
 
 export default function App() {
+  const session = useAuthSession();
+  const sync = useSyncState();
+  const [loginNotice, setLoginNotice] = useState<string | null>(null);
+
+  // 管理者に停止されたら、未送信データを送り終えた時点でログアウトする（要件4.1）
+  useEffect(() => {
+    if (!sync.accountDisabled) return;
+    void getProvider()
+      .signOut()
+      .then(() => {
+        setLoginNotice('このアカウントは管理者によって停止されました。未送信のデータは送信済みです');
+        resetSyncState();
+      });
+  }, [sync.accountDisabled]);
+
+  if (session === undefined) return <div className="splash">GeoBoard</div>;
+  if (session === null) return <Login notice={loginNotice} />;
+  return <MainApp session={session} />;
+}
+
+function MainApp({ session }: { session: AuthSession }) {
   // 前回開いていた台帳から再開する
   const [ledgerId, setLedgerId] = useState<string | null>(() => prefs.getLastLedger());
   const [screen, setScreen] = useState<Screen>(() => (prefs.getLastLedger() ? { name: 'records' } : { name: 'customers' }));
@@ -257,7 +283,7 @@ export default function App() {
     case 'boardFix':
       return <BoardFix recordId={screen.id} onBack={() => setScreen({ name: 'detail', id: screen.id, ids: screen.ids })} />;
     case 'settings':
-      return <Settings onBack={() => setScreen(screen.from)} />;
+      return <Settings session={session} onBack={() => setScreen(screen.from)} />;
   }
 }
 

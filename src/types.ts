@@ -1,3 +1,6 @@
+/** 同期の状態。pending：未送信 / synced：送信済み / failed：送信失敗（手動で再送） */
+export type SyncStatus = 'pending' | 'synced' | 'failed';
+
 /** 黒板の1枠 */
 export interface BoardItem {
   label: string;
@@ -22,15 +25,18 @@ export interface BoardLayout {
 
 export interface Customer {
   id: string;
-  /** 顧客コード（サーバーで採番。ステップ3まではnull） */
+  /** 顧客コード（サーバーで採番。送信前・仮顧客はnull） */
   code: string | null;
   name: string;
-  /** 仮顧客（圏外で作成した未確定の顧客。ステップ3で使用） */
+  /** 仮顧客（圏外で作成した未確定の顧客） */
   isProvisional: boolean;
+  /** 作成者のユーザーID */
   createdBy: string;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  syncStatus: SyncStatus;
+  syncError?: string;
 }
 
 export interface Ledger {
@@ -47,6 +53,8 @@ export interface Ledger {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  syncStatus: SyncStatus;
+  syncError?: string;
 }
 
 export interface WorkRecord {
@@ -69,8 +77,12 @@ export interface WorkRecord {
   locationAccuracy: number | null;
   imageWidth: number;
   imageHeight: number;
-  /** 未送信 / 送信済み（ステップ3で使用） */
-  syncStatus: 'pending' | 'synced' | 'failed';
+  /** サーバー上の画像の保存場所（送信後に設定） */
+  compositePath?: string | null;
+  originalPath?: string | null;
+  thumbPath?: string | null;
+  syncStatus: SyncStatus;
+  syncError?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -88,6 +100,8 @@ export interface StoredImage {
   recordId: string;
   kind: 'composite' | 'original' | 'thumb' | 'extra' | 'extra_thumb';
   blob: Blob;
+  /** サーバーへ送信済みか */
+  uploaded?: boolean;
 }
 
 export interface BoardTemplate {
@@ -98,6 +112,9 @@ export interface BoardTemplate {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  deletedAt: string | null;
+  syncStatus: SyncStatus;
+  syncError?: string;
 }
 
 /** 次回への引継ぎ事項（黒板には載せない） */
@@ -113,8 +130,21 @@ export interface ExtraPhoto {
   source: 'camera' | 'import';
   width: number;
   height: number;
-  syncStatus: 'pending' | 'synced' | 'failed';
+  path?: string | null;
+  thumbPath?: string | null;
+  syncStatus: SyncStatus;
+  syncError?: string;
   createdBy: string;
   createdAt: string;
+  updatedAt: string;
   deletedAt: string | null;
+}
+
+/** ユーザー（サーバーのprofilesの写し） */
+export interface Profile {
+  userId: string;
+  displayName: string;
+  role: 'admin' | 'member';
+  disabled: boolean;
+  updatedAt: string;
 }

@@ -5,7 +5,7 @@ import { db } from '../db';
 import { addExtraPhotos, deleteExtraPhoto } from '../lib/extraPhotos';
 import type { ExtraPhoto } from '../types';
 import { Icon } from './Icon';
-import { useBlobUrl } from './useBlobUrl';
+import { useImageUrl } from '../sync/images';
 
 /** 作業記録の追加写真（黒板なし・複数枚、閲覧用） */
 export function ExtraPhotos({ recordId }: { recordId: string }) {
@@ -43,7 +43,7 @@ export function ExtraPhotos({ recordId }: { recordId: string }) {
           {list.map((x, i) => (
             <li key={x.id}>
               <button className="extras-thumb" onClick={() => setViewing(i)} aria-label={`追加写真 ${i + 1}`}>
-                <ExtraThumb id={x.id} />
+                <ExtraThumb x={x} />
               </button>
             </li>
           ))}
@@ -105,9 +105,8 @@ export function ExtraPhotos({ recordId }: { recordId: string }) {
   );
 }
 
-function ExtraThumb({ id }: { id: string }) {
-  const img = useLiveQuery(() => db.images.get(`${id}:extra_thumb`), [id]);
-  const url = useBlobUrl(img?.blob);
+function ExtraThumb({ x }: { x: ExtraPhoto }) {
+  const { url } = useImageUrl(`${x.id}:extra_thumb`, x.thumbPath, { persist: { recordId: x.recordId, kind: 'extra_thumb' } });
   return url ? <img src={url} alt="" /> : null;
 }
 
@@ -122,8 +121,9 @@ interface ViewerProps {
 /** 追加写真の全画面表示。左右スワイプで前後の追加写真に移動 */
 function ExtraViewer({ extras, index, onIndex, onClose, onDelete }: ViewerProps) {
   const x = extras[index];
-  const img = useLiveQuery(() => db.images.get(`${x.id}:extra`), [x.id]);
-  const url = useBlobUrl(img?.blob);
+  const full = useImageUrl(`${x.id}:extra`, x.path);
+  const thumb = useImageUrl(`${x.id}:extra_thumb`, x.thumbPath);
+  const url = full.url ?? thumb.url;
   const start = useRef<{ x: number; y: number } | null>(null);
   const prev = index > 0 ? () => onIndex(index - 1) : undefined;
   const next = index < extras.length - 1 ? () => onIndex(index + 1) : undefined;

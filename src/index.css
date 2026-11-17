@@ -404,3 +404,42 @@ button:disabled { opacity: 0.4; cursor: default; }
 .segmented.inline.dark { background: #1c1c1e; border-color: #2c2c2e; margin: 0; }
 .segmented.inline.dark button { color: #aaa; font-size: 13px; }
 .segmented.inline.dark button.on { background: #3a3a3c; color: #fff; box-shadow: none; }
+
+/* ---------- ログイン ---------- */
+.login { background: linear-gradient(180deg, var(--brand-soft), var(--c-bg) 45%); }
+.login-body { flex: 1; overflow-y: auto; padding: calc(48px + var(--safe-top)) 24px 32px; display: flex; flex-direction: column; align-items: center; }
+.login-mark { width: 88px; height: auto; }
+.login-title { margin: 12px 0 2px; font-size: 26px; font-weight: 800; color: var(--brand); letter-spacing: 0.02em; }
+.login-sub { margin: 0 0 28px; color: var(--c-muted); font-size: 14px; }
+.login-form { width: min(400px, 100%); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: 20px; padding: 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; }
+.login-form .btn { margin-top: 8px; }
+.login-notice { width: min(400px, 100%); margin: 0 0 16px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--c-danger) 12%, transparent); color: var(--c-danger); font-size: 14px; line-height: 1.6; }
+.login-help { width: min(400px, 100%); text-align: center; margin-top: 18px; }
+
+/* ---------- 同期の状況 ---------- */
+.syncbar { display: flex; flex-direction: column; gap: 1px; }
+.syncbar-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 16px; font-size: 13px; font-weight: 600; line-height: 1.5; }
+.syncbar-item.tone-info { background: var(--brand-soft); color: var(--brand); }
+.syncbar-item.tone-warn { background: color-mix(in srgb, var(--c-warn) 20%, var(--c-surface)); color: #7a5a00; }
+.syncbar-item.tone-error { background: color-mix(in srgb, var(--c-danger) 12%, var(--c-surface)); color: var(--c-danger); }
+@media (prefers-color-scheme: dark) { .syncbar-item.tone-warn { color: #f5d25a; } }
+.syncbar-btn { flex: none; min-height: 32px; padding: 0 14px; border-radius: 999px; border: 1.5px solid currentColor; background: transparent; color: inherit; font-weight: 700; font-size: 13px; }
+
+/* ---------- 設定 ---------- */
+.field-label { font-size: 12px; color: var(--c-muted); font-weight: 800; letter-spacing: 0.04em; }
+.inline-form { display: flex; gap: 8px; }
+.inline-form input { flex: 1; min-width: 0; }
+.inline-form .btn { flex: none; min-height: 48px; }
+.settings-inline { margin-top: 12px; }
+.card .btn-wide { margin-top: 10px; }
+.user-list { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; }
+.user-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--c-border); }
+.user-list li:last-child { border-bottom: none; }
+.user-list li.is-disabled .user-name strong { color: var(--c-muted); }
+.user-name { display: flex; align-items: center; gap: 4px; min-width: 0; flex-wrap: wrap; }
+.user-actions { display: flex; gap: 6px; flex: none; }
+.user-actions select { width: auto; min-height: 40px; padding: 6px 10px; }
+.user-actions .btn { min-height: 40px; padding: 0 12px; font-size: 13px; }
+.card-main strong .badge { margin: 0 6px 0 0; vertical-align: 2px; }
+.detail-img { position: relative; }
+.detail-img-note { position: absolute; left: 8px; bottom: 8px; padding: 4px 10px; border-radius: 999px; background: rgba(0,0,0,0.6); color: #fff; font-size: 12px; }

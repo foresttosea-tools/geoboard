@@ -6,7 +6,7 @@ import { ExtraPhotos } from '../components/ExtraPhotos';
 import { HandoverField } from '../components/HandoverField';
 import { Icon } from '../components/Icon';
 import { Marks } from '../components/RecordMarks';
-import { useBlobUrl } from '../components/useBlobUrl';
+import { useImageUrl } from '../sync/images';
 import { db, deleteRecord, nowIso } from '../db';
 import { canFixBoard } from '../lib/editRecord';
 import type { Handover, WorkRecord } from '../types';
@@ -30,11 +30,15 @@ const savedNotes = (r: WorkRecord): Notes => ({ text: r.handover ?? '', inReport
 
 export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props) {
   const record = useLiveQuery(() => db.records.get(id), [id]);
-  const composite = useLiveQuery(() => db.images.get(`${id}:composite`), [id]);
-  const original = useLiveQuery(() => db.images.get(`${id}:original`), [id]);
   const [showOriginal, setShowOriginal] = useState(false);
-  const blob = showOriginal ? original?.blob : (composite?.blob ?? original?.blob);
-  const url = useBlobUrl(blob);
+  // 黒板なしのみの記録は原本だけ。両方の記録は切り替えで原本を表示
+  const useOriginal = showOriginal || record?.mode === 'without_board';
+  const image = useImageUrl(
+    record ? `${id}:${useOriginal ? 'original' : 'composite'}` : null,
+    useOriginal ? record?.originalPath : record?.compositePath,
+  );
+  const thumb = useImageUrl(record ? `${id}:thumb` : null, record?.thumbPath);
+  const url = image.url ?? thumb.url;
 
   // 引継ぎ事項・メモの編集中の内容。記録を切り替えたら破棄する
   const [draft, setDraft] = useState<(Notes & { id: string }) | null>(null);
@@ -128,7 +132,12 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
         onTouchEnd={onTouchEnd}
         onAnimationEnd={() => setSlide(null)}
       >
-        <div className="detail-img">{url && <img src={url} alt="作業記録の写真" draggable={false} />}</div>
+        <div className="detail-img">
+          {url && <img src={url} alt="作業記録の写真" draggable={false} />}
+          {!image.url && (image.loading || image.error) && (
+            <span className="detail-img-note">{image.error ? '圏外のため縮小版を表示しています' : '写真を読み込んでいます…'}</span>
+          )}
+        </div>
         {record.mode === 'both' && (
           <div className="segmented inline">
             <button className={!showOriginal ? 'on' : ''} onClick={() => setShowOriginal(false)}>黒板あり</button>

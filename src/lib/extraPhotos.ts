@@ -22,8 +22,9 @@ export async function addExtraPhotos(recordId: string, files: File[], source: Ex
         width: canvas.width,
         height: canvas.height,
         syncStatus: 'pending',
-        createdBy: prefs.getWorkerName(),
+        createdBy: prefs.getUserId(),
         createdAt: nowIso(),
+        updatedAt: nowIso(),
         deletedAt: null,
       };
       await db.transaction('rw', db.extras, db.images, db.records, async () => {
@@ -41,5 +42,6 @@ export async function addExtraPhotos(recordId: string, files: File[], source: Ex
 
 /** 論理削除（要件4.3） */
 export async function deleteExtraPhoto(id: string) {
-  await db.extras.update(id, { deletedAt: nowIso() });
+  const t = nowIso();
+  await db.extras.update(id, { deletedAt: t, updatedAt: t });
 }

@@ -2,7 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useRef, useState } from 'react';
 import { SLOT_PLACE, SLOT_WORK, SLOT_WORKER } from '../blackboard/model';
 import { Icon } from '../components/Icon';
-import { useBlobUrl } from '../components/useBlobUrl';
+import { SyncBar } from '../components/SyncBar';
+import { useImageUrl } from '../sync/images';
 import { db } from '../db';
 import { prefs } from '../lib/prefs';
 import { Marks, formatShotDate } from '../components/RecordMarks';
@@ -59,6 +60,7 @@ export function RecordList({ ledger, customerName, onBack, onEditLedger, onShoot
           </button>
         </div>
       </header>
+      <SyncBar />
 
       <div className="statusbar">
         <span className="status-count">
@@ -82,7 +84,7 @@ export function RecordList({ ledger, customerName, onBack, onEditLedger, onShoot
             {sorted.map((r) => (
               <li key={r.id}>
                 <button className="rec-item" onClick={() => onOpen(r.id, sorted.map((x) => x.id))}>
-                  <Thumb id={r.id} />
+                  <Thumb id={r.id} path={r.thumbPath} />
                   <div className="rec-text">
                     <div className="rec-line1">
                       <span>{formatShotDate(r)}</span>
@@ -103,7 +105,7 @@ export function RecordList({ ledger, customerName, onBack, onEditLedger, onShoot
             {sorted.map((r) => (
               <li key={r.id}>
                 <button className="grid-item" onClick={() => onOpen(r.id, sorted.map((x) => x.id))}>
-                  <Thumb id={r.id} />
+                  <Thumb id={r.id} path={r.thumbPath} />
                   <span className="grid-date">{formatShotDate(r)}</span>
                   {r.syncStatus !== 'synced' && <span className="grid-dot" aria-label="未送信" />}
                 </button>
@@ -139,8 +141,7 @@ export function RecordList({ ledger, customerName, onBack, onEditLedger, onShoot
   );
 }
 
-function Thumb({ id }: { id: string }) {
-  const img = useLiveQuery(() => db.images.get(`${id}:thumb`), [id]);
-  const url = useBlobUrl(img?.blob);
+function Thumb({ id, path }: { id: string; path?: string | null }) {
+  const { url } = useImageUrl(`${id}:thumb`, path, { persist: { recordId: id, kind: 'thumb' } });
   return <div className="thumb">{url && <img src={url} alt="" />}</div>;
 }

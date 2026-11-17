@@ -13,7 +13,7 @@ interface Props {
 export function TemplateList({ onBack, onPick }: Props) {
   const [sort, setSort] = useState<'recent' | 'name'>('recent');
   const [q, setQ] = useState('');
-  const templates = useLiveQuery(() => db.templates.toArray(), []);
+  const templates = useLiveQuery(() => db.templates.filter((t) => !t.deletedAt).toArray(), []);
 
   const list = useMemo(() => {
     const filtered = (templates ?? []).filter((t) => !q || t.name.includes(q));
@@ -44,7 +44,7 @@ export function TemplateList({ onBack, onPick }: Props) {
               <button
                 className="tpl-item"
                 onClick={async () => {
-                  await db.templates.update(t.id, { lastUsedAt: nowIso() });
+                  await db.templates.update(t.id, { lastUsedAt: nowIso(), updatedAt: nowIso() });
                   onPick(t);
                 }}
               >
@@ -55,7 +55,10 @@ export function TemplateList({ onBack, onPick }: Props) {
                 className="icon-btn danger"
                 aria-label={`${t.name}を削除`}
                 onClick={async () => {
-                  if (confirm(`「${t.name}」を削除しますか？`)) await db.templates.delete(t.id);
+                  if (confirm(`「${t.name}」を削除しますか？`)) {
+                    const now = nowIso();
+                    await db.templates.update(t.id, { deletedAt: now, updatedAt: now });
+                  }
                 }}
               >
                 <Icon name="trash" size={18} />

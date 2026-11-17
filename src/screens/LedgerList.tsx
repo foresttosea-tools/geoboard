@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { Icon } from '../components/Icon';
+import { SyncBar } from '../components/SyncBar';
 import { db } from '../db';
 import { prefs } from '../lib/prefs';
 import { formatTerm, normalizeForSearch } from '../lib/repo';
@@ -58,6 +59,7 @@ export function LedgerList({ customerId, onBack, onOpen, onCreate }: Props) {
         <h1>{customer?.name ?? ''}</h1>
         <span />
       </header>
+      <SyncBar />
 
       <main className="screen-body">
         <div className="toolbar">

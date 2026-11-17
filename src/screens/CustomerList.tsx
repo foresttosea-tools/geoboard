@@ -1,6 +1,8 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { Icon } from '../components/Icon';
+import { SyncBar } from '../components/SyncBar';
+import { useOnline } from '../sync/hooks';
 import { db } from '../db';
 import { createCustomer, normalizeForSearch, renameCustomer } from '../lib/repo';
 import type { Customer } from '../types';
@@ -14,6 +16,7 @@ interface Props {
 export function CustomerList({ onOpen, onSettings }: Props) {
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<Customer | 'new' | null>(null);
+  const online = useOnline();
   const customers = useLiveQuery(() => db.customers.filter((c) => !c.deletedAt).toArray(), []);
   const ledgers = useLiveQuery(() => db.ledgers.filter((l) => !l.deletedAt).toArray(), []);
 
@@ -54,6 +57,7 @@ export function CustomerList({ onOpen, onSettings }: Props) {
           </button>
         </div>
       </header>
+      <SyncBar />
 
       <main className="screen-body">
         <input className="search" type="search" placeholder="顧客名・顧客コードで検索" value={q} onChange={(e) => setQ(e.target.value)} />
@@ -64,9 +68,12 @@ export function CustomerList({ onOpen, onSettings }: Props) {
           {list.map((c) => (
             <li key={c.id} className="card-row">
               <button className="card-main" onClick={() => onOpen(c.id)}>
-                <strong>{c.name}</strong>
+                <strong>
+                  {c.isProvisional && <span className="badge badge-warn">仮</span>}
+                  {c.name}
+                </strong>
                 <span>
-                  {c.code ?? 'コード未採番'} / 台帳 {stats.get(c.id)?.count ?? 0}件
+                  {c.code ?? (c.isProvisional ? '仮顧客（管理者が確定します）' : '送信後にコードを採番')} / 台帳 {stats.get(c.id)?.count ?? 0}件
                 </span>
               </button>
               <button className="icon-btn" aria-label={`${c.name}を編集`} onClick={() => setEditing(c)}>
@@ -80,20 +87,27 @@ export function CustomerList({ onOpen, onSettings }: Props) {
       <footer className="bottombar">
         <button className="btn btn-primary btn-wide" onClick={() => setEditing('new')}>
           <Icon name="plus" />
-          顧客を追加
+          {online ? '顧客を追加' : '仮顧客を作成（圏外）'}
         </button>
       </footer>
 
       {editing && (
         <NameSheet
-          title={editing === 'new' ? '顧客を追加' : '顧客名を変更'}
+          title={editing === 'new' ? (online ? '顧客を追加' : '仮顧客を作成') : '顧客名を変更'}
           initial={editing === 'new' ? '' : editing.name}
-          note={editing === 'new' ? '顧客コードは、サーバーとの同期機能ができた時点で自動で採番されます' : undefined}
+          note={
+            editing === 'new'
+              ? online
+                ? '顧客コードは、送信した時点で自動で採番されます'
+                : '圏外のため仮顧客として作成します。電波が戻ったら管理者が既存の顧客に紐づけるか、正式な顧客として登録します'
+              : undefined
+          }
           existingNames={(customers ?? []).filter((c) => editing === 'new' || c.id !== editing.id).map((c) => c.name)}
           onCancel={() => setEditing(null)}
           onSave={async (name) => {
             if (editing === 'new') {
-              const c = await createCustomer(name);
+              // 圏外では仮顧客として作成する（要件6.1）
+              const c = await createCustomer(name, !navigator.onLine);
               setEditing(null);
               onOpen(c.id);
             } else {
