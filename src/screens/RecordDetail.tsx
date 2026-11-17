@@ -8,7 +8,8 @@ import { Icon } from '../components/Icon';
 import { Marks } from '../components/RecordMarks';
 import { useImageUrl } from '../sync/images';
 import { db, deleteRecord, nowIso } from '../db';
-import { canFixBoard } from '../lib/editRecord';
+import { canFixBoard, confirmShotDate } from '../lib/editRecord';
+import { SLOT_DATE as DATE_SLOT, todayIsoDate } from '../blackboard/model';
 import type { Handover, WorkRecord } from '../types';
 
 interface Props {
@@ -145,6 +146,7 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
           </div>
         )}
         <Marks r={record} />
+        {record.shotDateNeedsCheck && <ShotDateCheck record={record} />}
 
         <ExtraPhotos recordId={id} />
 
@@ -251,6 +253,48 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
           ]}
         />
       )}
+    </div>
+  );
+}
+
+/** 「日付要確認」の記録の撮影日を確定する */
+function ShotDateCheck({ record }: { record: WorkRecord }) {
+  const initial = record.board?.[DATE_SLOT]?.value || todayIsoDate(new Date(record.shotAt));
+  const [date, setDate] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const willRecompose = canFixBoard(record) && date !== record.board?.[DATE_SLOT]?.value;
+  return (
+    <div className="date-check">
+      <p className="date-check-title">撮影日を確認してください</p>
+      <p className="date-check-text">
+        写真から撮影日を読み取れなかったため、仮の日付が入っています。
+        {canFixBoard(record)
+          ? '日付を変えると、黒板の撮影日も直して写真を作り直します。'
+          : record.board
+            ? '「黒板ありのみ」で保存したため、写真の黒板の日付は直せません。記録の撮影日だけを直します。'
+            : ''}
+      </p>
+      <div className="inline-form">
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="撮影日" />
+        <button
+          className="btn btn-primary"
+          disabled={!date || busy}
+          onClick={async () => {
+            setBusy(true);
+            setError(null);
+            try {
+              await confirmShotDate(record, date);
+            } catch (e) {
+              setError((e as Error).message);
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? (willRecompose ? '写真を作り直しています…' : '保存中…') : 'この日付で確定'}
+        </button>
+      </div>
+      {error && <p className="hint danger">{error}</p>}
     </div>
   );
 }

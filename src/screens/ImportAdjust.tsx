@@ -228,7 +228,7 @@ export function ImportAdjust({ files, ledgerId, board, mode, handover, onBack, o
       <div className="import-panel">
         {failed > 0 && <p className="hint warn-text">{failed}枚の写真を読み込めませんでした</p>}
         <div className="import-row">
-          <label className="import-date">
+          <label className={`import-date ${item?.needsCheck ? 'needs-check' : ''}`}>
             <span>撮影日</span>
             <input
               type="date"
@@ -236,9 +236,15 @@ export function ImportAdjust({ files, ledgerId, board, mode, handover, onBack, o
               onChange={(e) => updateItem({ date: e.target.value, needsCheck: false })}
             />
           </label>
-          {item?.needsCheck && <span className="badge badge-warn">日付要確認</span>}
+          {item?.needsCheck && <span className="import-check-badge">日付要確認</span>}
+          {item?.needsCheck && (
+            <button type="button" className="import-check-ok" onClick={() => updateItem({ needsCheck: false })}>
+              この日付でOK
+            </button>
+          )}
           <span className="import-geo">{item?.geo ? '位置情報あり' : '位置情報なし'}</span>
         </div>
+        {item?.needsCheck && <p className="import-check-hint">写真から撮影日を読み取れませんでした。撮影日をタップして確認してください（今日の日付が仮に入っています）</p>}
         {boardOn && (
           <div className="segmented inline dark">
             <button className={!item?.ownLayout ? 'on' : ''} onClick={() => updateItem({ ownLayout: null })}>

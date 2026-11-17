@@ -443,3 +443,13 @@ button:disabled { opacity: 0.4; cursor: default; }
 .card-main strong .badge { margin: 0 6px 0 0; vertical-align: 2px; }
 .detail-img { position: relative; }
 .detail-img-note { position: absolute; left: 8px; bottom: 8px; padding: 4px 10px; border-radius: 999px; background: rgba(0,0,0,0.6); color: #fff; font-size: 12px; }
+
+/* ---------- 撮影日の確認 ---------- */
+.import-date.needs-check input { border: 2px solid #f2c230; box-shadow: 0 0 0 3px rgba(242, 194, 48, 0.25); }
+.import-check-badge { display: inline-flex; align-items: center; height: 26px; padding: 0 10px; border-radius: 999px; background: #f2c230; color: #2a2100; font-size: 12px; font-weight: 800; }
+.import-check-ok { min-height: 32px; padding: 0 12px; border-radius: 999px; border: 1.5px solid #f2c230; background: transparent; color: #f2c230; font-weight: 700; font-size: 12px; }
+.import-check-hint { margin: 0; font-size: 12px; line-height: 1.5; color: #f5d25a; }
+.date-check { margin: 10px 0; padding: 14px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--c-warn) 18%, var(--c-surface)); border: 1.5px solid var(--c-warn); }
+.date-check-title { margin: 0 0 4px; font-weight: 800; font-size: 15px; }
+.date-check-text { margin: 0 0 10px; font-size: 13px; line-height: 1.6; color: var(--c-muted); }
+.date-check input[type="date"] { min-height: 48px; padding: 10px 12px; border: 1.5px solid var(--c-border); border-radius: 12px; background: var(--c-surface); font-size: 16px; }

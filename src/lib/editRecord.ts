@@ -1,4 +1,5 @@
 import { db, nowIso } from '../db';
+import { SLOT_DATE } from '../blackboard/model';
 import type { BoardContent, WorkRecord } from '../types';
 import { loadImageBlob } from '../sync/images';
 import { canvasToJpeg, composeWithBoard, loadImageToCanvas, makeThumbnail } from './image';
@@ -23,7 +24,39 @@ export async function fixRecordBoard(record: WorkRecord, board: BoardContent) {
   await db.transaction('rw', db.records, db.images, async () => {
     await db.images.put({ key: `${record.id}:composite`, recordId: record.id, kind: 'composite', blob: compositeBlob });
     await db.images.put({ key: `${record.id}:thumb`, recordId: record.id, kind: 'thumb', blob: thumbBlob });
-    // 写真が変わったので再送信の対象にする（更新すると自動で未送信になる）
-    await db.records.update(record.id, { board, updatedAt: nowIso() });
+    // 写真が変わったので再送信の対象にする（更新すると自動で未送信になる）。
+    // 撮影日を直した場合は「日付要確認」を外し、撮影日時もその日付に合わせる
+    const dateChanged = board[SLOT_DATE]?.value !== record.board?.[SLOT_DATE]?.value;
+    await db.records.update(record.id, {
+      board,
+      updatedAt: nowIso(),
+      ...(dateChanged && board[SLOT_DATE]?.value
+        ? { shotDateNeedsCheck: false, shotAt: shotAtForDate(board[SLOT_DATE].value, record.shotAt) }
+        : {}),
+    });
   });
+}
+
+/** 日付（YYYY-MM-DD）を撮影日時にする。元の撮影日時と同じ日ならそのまま、違えば正午にする */
+function shotAtForDate(date: string, current: string): string {
+  const d = new Date(current);
+  const p = (n: number) => String(n).padStart(2, '0');
+  const sameDay = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}` === date;
+  return sameDay ? current : new Date(`${date}T12:00:00`).toISOString();
+}
+
+/**
+ * 「日付要確認」の記録の撮影日を確定する（要件6.6）。
+ * - 「両方」で保存した記録：黒板の撮影日を直して写真を作り直す
+ * - それ以外：写真の黒板は直せないので、記録の撮影日時だけを直す
+ */
+export async function confirmShotDate(record: WorkRecord, date: string) {
+  if (canFixBoard(record) && record.board) {
+    const board = record.board.map((it, i) => (i === SLOT_DATE ? { ...it, value: date } : it));
+    if (board[SLOT_DATE]?.value !== record.board[SLOT_DATE]?.value) {
+      await fixRecordBoard(record, board);
+      return;
+    }
+  }
+  await db.records.update(record.id, { shotDateNeedsCheck: false, shotAt: shotAtForDate(date, record.shotAt), updatedAt: nowIso() });
 }
