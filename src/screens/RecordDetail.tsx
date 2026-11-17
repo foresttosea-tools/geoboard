@@ -5,6 +5,7 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ExtraPhotos } from '../components/ExtraPhotos';
 import { HandoverField } from '../components/HandoverField';
 import { Icon } from '../components/Icon';
+import { LocationValue } from '../components/LocationValue';
 import { Marks } from '../components/RecordMarks';
 import { useImageUrl } from '../sync/images';
 import { db, deleteRecord, nowIso } from '../db';
@@ -147,9 +148,11 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
           <div>
             <dt>位置情報</dt>
             <dd>
-              {record.latitude != null && record.longitude != null
-                ? `${record.latitude.toFixed(6)}, ${record.longitude.toFixed(6)}${record.locationAccuracy ? `（±${Math.round(record.locationAccuracy)}m）` : ''}`
-                : 'なし'}
+              {record.latitude != null && record.longitude != null ? (
+                <LocationValue latitude={record.latitude} longitude={record.longitude} accuracy={record.locationAccuracy} />
+              ) : (
+                'なし'
+              )}
             </dd>
           </div>
           <div>
