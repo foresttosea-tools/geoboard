@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
 
 interface Props {
@@ -39,6 +39,26 @@ export function LocationValue({ latitude, longitude, accuracy }: Props) {
   const [pressing, setPressing] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const lineRef = useRef<HTMLSpanElement>(null);
+
+  // 緯度・経度と誤差を1行に収める。はみ出す場合は文字を小さくする（端末の幅に依存しないように）
+  useLayoutEffect(() => {
+    const el = lineRef.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.fontSize = '';
+      const base = parseFloat(getComputedStyle(el).fontSize);
+      let size = base;
+      while (el.scrollWidth > el.clientWidth && size > 8) {
+        size -= 0.5;
+        el.style.fontSize = `${size}px`;
+      }
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [coords, accuracy]);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -49,6 +69,7 @@ export function LocationValue({ latitude, longitude, accuracy }: Props) {
   return (
     <span className="location">
       <span
+        ref={lineRef}
         className={`location-coords ${pressing ? 'is-pressing' : ''}`}
         role="button"
         tabIndex={0}
@@ -85,11 +106,13 @@ export function LocationValue({ latitude, longitude, accuracy }: Props) {
         {coords}
         {accuracy ? <span className="location-acc">（±{Math.round(accuracy)}m）</span> : null}
       </span>
-      <a className="location-map" href={mapUrl} target="_blank" rel="noopener noreferrer">
-        <Icon name="map" size={16} />
-        地図
-      </a>
-      <span className="location-hint">長押しでコピー</span>
+      <span className="location-row">
+        <span className="location-hint">↑ 数字を長押しでコピー</span>
+        <a className="location-map" href={mapUrl} target="_blank" rel="noopener noreferrer">
+          <Icon name="map" size={16} />
+          地図で開く
+        </a>
+      </span>
       {toast && (
         <span className="toast" role="status">
           {toast}
