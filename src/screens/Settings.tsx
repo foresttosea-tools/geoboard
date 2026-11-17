@@ -140,7 +140,11 @@ export function Settings({ session, onBack }: Props) {
         {isAdmin && <ServerConfigCard />}
 
         <img src={`${import.meta.env.BASE_URL}brand/logo-horizontal.png`} alt="株式会社フォレストシー" className="settings-brand" />
-        <p className="version">GeoBoard v{__APP_VERSION__}</p>
+        <p className="version">
+          GeoBoard v{__APP_VERSION__}
+          <br />
+          {new Date(__BUILD_TIME__).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })} 公開（{__BUILD_COMMIT__}）
+        </p>
       </main>
 
       {logout != null && (

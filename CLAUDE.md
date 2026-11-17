@@ -27,6 +27,11 @@ React + TypeScript + Vite / vite-plugin-pwa / Dexie.js（IndexedDB）/ Supabase 
 
 要件定義書の「13. 開発ステップ」の順に進める。進捗は README.md の「進捗」を参照。
 
+## バージョン
+
+- `package.json` の `version` を上げる。ステップが完了したら2桁目（例：ステップ3完了で 0.3.0）、修正のたびに3桁目（0.3.1、0.3.2…）
+- 設定画面にはバージョンに加えて、ビルド日時とコミットの識別番号が自動で表示される
+
 ## コマンド
 
 - `npm run dev`：開発サーバー

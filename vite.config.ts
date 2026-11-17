@@ -1,9 +1,20 @@
 import react from '@vitejs/plugin-react'
+import { execSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 const pkg = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8')) as { version: string }
+
+// 更新されたかを確認できるよう、ビルドした日時とコミットの識別番号を埋め込む
+function commitId(): string {
+  if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA.slice(0, 7)
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim()
+  } catch {
+    return 'local'
+  }
+}
 
 // GitHub Pages では https://<user>.github.io/geoboard/ で公開する
 const base = process.env.GEOBOARD_BASE ?? '/geoboard/'
@@ -12,6 +23,8 @@ export default defineConfig({
   base,
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    __BUILD_COMMIT__: JSON.stringify(commitId()),
   },
   plugins: [
     react(),
