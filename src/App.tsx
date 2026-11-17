@@ -196,8 +196,14 @@ function MainApp({ session }: { session: AuthSession }) {
           onModeChange={setMode}
           handover={handover}
           onHandoverChange={setHandover}
-          nextLabel={importFiles ? `${importFiles.length}枚の写真に黒板を配置` : '撮影に進む'}
-          dateHint={importFiles ? '撮影日は写真ごとに、写真の撮影日時から自動で入ります' : undefined}
+          nextLabel={importFiles ? (importFiles.length > 1 ? `${importFiles.length}枚の写真から記録を作る` : '写真に黒板を配置') : '撮影に進む'}
+          dateHint={
+            importFiles
+              ? importFiles.length > 1
+                ? '選んだ写真は1つの記録になります。黒板はメイン写真に付き、ほかは追加写真になります。撮影日はメイン写真の撮影日時から自動で入ります'
+                : '撮影日は写真の撮影日時から自動で入ります'
+              : undefined
+          }
           onBack={() => setScreen({ name: 'records' })}
           onOpenTemplates={() => setScreen({ name: 'templates' })}
           onNext={() => {

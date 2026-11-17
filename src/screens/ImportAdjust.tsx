@@ -3,7 +3,9 @@ import { SLOT_DATE, todayIsoDate } from '../blackboard/model';
 import { BoardCanvas } from '../components/BoardCanvas';
 import { Icon } from '../components/Icon';
 import { containRect, useBoardGestures } from '../components/useBoardGestures';
+import { diag } from '../lib/diag';
 import { readPhotoMeta } from '../lib/exif';
+import { addExtraPhotos } from '../lib/extraPhotos';
 import { clampLayout, defaultLayout, loadImageToCanvas, readImageSize, releaseCanvas } from '../lib/image';
 import { prefs, type Orientation } from '../lib/prefs';
 import { saveCapture } from '../lib/saveRecord';
@@ -25,40 +27,38 @@ interface Item {
   url: string;
   w: number;
   h: number;
-  /** 黒板の撮影日（YYYY-MM-DD） */
-  date: string;
   takenAt: Date | null;
   geo: GeoFix | null;
-  /** Exifに撮影日時がなく、当日の日付を入れた */
-  needsCheck: boolean;
-  /** この写真だけの黒板配置（nullなら共通の配置を使う） */
-  ownLayout: BoardLayout | null;
 }
 
 /**
  * 撮影日時：Exifがあればそれを使う。なければ選んだ日付の正午（当日のままなら現在時刻）にして、
  * 一覧の並び順が黒板の撮影日と食い違わないようにする
  */
-function shotAtFor(it: { takenAt: Date | null; date: string }): string {
-  if (it.takenAt) return it.takenAt.toISOString();
-  if (it.date === todayIsoDate()) return new Date().toISOString();
-  return new Date(`${it.date}T12:00:00`).toISOString();
+function shotAtFor(takenAt: Date | null, date: string): string {
+  if (takenAt) return takenAt.toISOString();
+  if (date === todayIsoDate()) return new Date().toISOString();
+  return new Date(`${date}T12:00:00`).toISOString();
 }
 
 const orientationOf = (it: { w: number; h: number }): Orientation => (it.w >= it.h ? 'landscape' : 'portrait');
 
-/** S13 取り込み調整：端末の写真に黒板を配置して一括保存する（要件6.6） */
+/**
+ * S13 取り込み調整（要件6.6）。
+ * 選んだ写真から1つの作業記録を作る。1枚をメイン写真にして黒板を付け、残りは黒板なしの追加写真にする
+ */
 export function ImportAdjust({ files, ledgerId, board, mode, handover, onBack, onDone }: Props) {
   const boardOn = mode !== 'without_board';
   const [items, setItems] = useState<Item[] | null>(null);
   const [failed, setFailed] = useState(0);
-  const [index, setIndex] = useState(0);
-  // 縦長・横長それぞれの共通配置
-  const [shared, setShared] = useState<Record<Orientation, BoardLayout | null>>({
+  const [mainIndex, setMainIndex] = useState(0);
+  const [layouts, setLayouts] = useState<Record<Orientation, BoardLayout | null>>({
     portrait: prefs.getLayout('portrait'),
     landscape: prefs.getLayout('landscape'),
   });
-  const [saving, setSaving] = useState<{ done: number; total: number } | null>(null);
+  // メイン写真の撮影日。null のときはメイン写真のExifから決める
+  const [dateOverride, setDateOverride] = useState<{ index: number; date: string; confirmed: boolean } | null>(null);
+  const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // 画像のサイズとExifを読み込む
@@ -74,23 +74,13 @@ export function ImportAdjust({ files, ledgerId, board, mode, handover, onBack, o
           const meta = await readPhotoMeta(file);
           const url = URL.createObjectURL(file);
           urls.push(url);
-          loaded.push({
-            file,
-            url,
-            w,
-            h,
-            date: todayIsoDate(meta.takenAt ?? new Date()),
-            takenAt: meta.takenAt,
-            geo: meta.geo,
-            needsCheck: meta.takenAt == null,
-            ownLayout: null,
-          });
+          loaded.push({ file, url, w, h, takenAt: meta.takenAt, geo: meta.geo });
         } catch {
           ng++;
         }
       }
       if (cancelled) return;
-      // 撮影日時の古い順に並べる
+      // 撮影日時の古い順に並べ、最初の写真をメインにする
       loaded.sort((a, b) => (a.takenAt?.getTime() ?? Infinity) - (b.takenAt?.getTime() ?? Infinity));
       setItems(loaded);
       setFailed(ng);
@@ -101,14 +91,15 @@ export function ImportAdjust({ files, ledgerId, board, mode, handover, onBack, o
     };
   }, [files]);
 
-  const item = items?.[index] ?? null;
-  const orientation = item ? orientationOf(item) : 'landscape';
+  const main = items?.[mainIndex] ?? null;
+  const orientation = main ? orientationOf(main) : 'landscape';
+  const layout = main ? clampLayout(layouts[orientation] ?? defaultLayout(main.w, main.h), main.w, main.h) : null;
 
-  const layoutFor = (it: Item): BoardLayout =>
-    clampLayout(it.ownLayout ?? shared[orientationOf(it)] ?? defaultLayout(it.w, it.h), it.w, it.h);
-  const layout = item ? layoutFor(item) : null;
-
-  const updateItem = (patch: Partial<Item>) => setItems((prev) => prev && prev.map((it, i) => (i === index ? { ...it, ...patch } : it)));
+  // 撮影日：メイン写真のExif。なければ今日の日付を仮に入れて「日付要確認」にする
+  const exifDate = main?.takenAt ? todayIsoDate(main.takenAt) : null;
+  const override = dateOverride?.index === mainIndex ? dateOverride : null;
+  const date = override?.date ?? exifDate ?? todayIsoDate();
+  const needsCheck = !exifDate && !override?.confirmed;
 
   // 表示範囲
   const boxRef = useRef<HTMLDivElement>(null);
@@ -121,53 +112,49 @@ export function ImportAdjust({ files, ledgerId, board, mode, handover, onBack, o
     ro.observe(el);
     return () => ro.disconnect();
   }, [loaded]);
-  const rect = useMemo(() => (item ? containRect(box.w, box.h, item.w, item.h) : null), [box, item]);
-
-  // 「この写真だけ調整」中は ownLayout を、それ以外は縦長・横長ごとの共通配置を動かす
-  const applyLayout = (l: BoardLayout) => {
-    if (!item) return;
-    if (item.ownLayout) updateItem({ ownLayout: l });
-    else setShared((s) => ({ ...s, [orientation]: l }));
-  };
+  const rect = useMemo(() => (main ? containRect(box.w, box.h, main.w, main.h) : null), [box, main]);
 
   const gestures = useBoardGestures({
     enabled: boardOn,
     rect,
-    imageW: item?.w ?? 0,
-    imageH: item?.h ?? 0,
+    imageW: main?.w ?? 0,
+    imageH: main?.h ?? 0,
     layout,
-    onChange: applyLayout,
-    onCommit: (l) => {
-      if (!item?.ownLayout) prefs.setLayout(orientation, l);
-    },
+    onChange: (l) => setLayouts((s) => ({ ...s, [orientation]: l })),
+    onCommit: (l) => prefs.setLayout(orientation, l),
   });
 
-  const boardForItem = (it: Item): BoardContent => board.map((b, i) => (i === SLOT_DATE ? { ...b, value: it.date } : b));
-  const previewBoard = item ? boardForItem(item) : board;
+  const boardWithDate = board.map((b, i) => (i === SLOT_DATE ? { ...b, value: date } : b));
+  const extras = items ? items.filter((_, i) => i !== mainIndex) : [];
 
-  const saveAll = async () => {
-    if (!items) return;
-    setSaving({ done: 0, total: items.length });
+  const save = async () => {
+    if (!items || !main) return;
     setError(null);
     try {
-      for (let i = 0; i < items.length; i++) {
-        const it = items[i];
-        const photo = await loadImageToCanvas(it.file);
-        await saveCapture({
-          ledgerId,
-          mode,
-          board: boardForItem(it),
-          handover,
-          layout: boardOn ? layoutFor(it) : null,
-          photo,
-          geo: it.geo,
-          shotAt: shotAtFor(it),
-          source: 'import',
-          shotDateNeedsCheck: it.needsCheck,
-        });
-        // 次の写真の前に大きい画像のメモリを解放する（まとめて取り込むときのメモリ不足対策）
-        releaseCanvas(photo);
-        setSaving({ done: i + 1, total: items.length });
+      setSaving('メイン写真を保存しています…');
+      diag('import:save', { photos: items.length, mode });
+      const photo = await loadImageToCanvas(main.file);
+      const record = await saveCapture({
+        ledgerId,
+        mode,
+        board: boardWithDate,
+        handover,
+        layout: boardOn ? layout : null,
+        photo,
+        geo: main.geo,
+        shotAt: shotAtFor(main.takenAt, date),
+        source: 'import',
+        shotDateNeedsCheck: needsCheck,
+      });
+      releaseCanvas(photo);
+      if (extras.length > 0) {
+        setSaving(`追加写真を保存しています（${extras.length}枚）…`);
+        const { failed: ng } = await addExtraPhotos(
+          record.id,
+          extras.map((x) => x.file),
+          'import',
+        );
+        if (ng > 0) diag('import:extra-failed', ng);
       }
       onDone();
     } catch (e) {
@@ -205,22 +192,17 @@ export function ImportAdjust({ files, ledgerId, board, mode, handover, onBack, o
         <button className="cam-btn cam-round" onClick={onBack} aria-label="戻る" disabled={saving != null}>
           <Icon name="back" />
         </button>
-        <h1>
-          写真から登録 {index + 1} / {items.length}
-        </h1>
+        <h1>{items.length > 1 ? `写真から登録（${items.length}枚で1件）` : '写真から登録'}</h1>
         <span />
       </header>
 
       <div className="import-stage" ref={boxRef} {...gestures}>
-        {item && rect && (
+        {main && rect && (
           <div className="cam-frame" style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}>
-            <img src={item.url} alt="" className="import-img" draggable={false} />
+            <img src={main.url} alt="メイン写真" className="import-img" draggable={false} />
             {boardOn && layout && (
-              <div
-                className="cam-board overlay-board"
-                style={{ left: layout.x * rect.width, top: layout.y * rect.height, width: layout.w * rect.width }}
-              >
-                <BoardCanvas board={previewBoard} width={Math.round(layout.w * rect.width)} />
+              <div className="cam-board overlay-board" style={{ left: layout.x * rect.width, top: layout.y * rect.height, width: layout.w * rect.width }}>
+                <BoardCanvas board={boardWithDate} width={Math.round(layout.w * rect.width)} />
               </div>
             )}
           </div>
@@ -229,48 +211,53 @@ export function ImportAdjust({ files, ledgerId, board, mode, handover, onBack, o
 
       <div className="import-panel">
         {failed > 0 && <p className="hint warn-text">{failed}枚の写真を読み込めませんでした</p>}
+
+        {items.length > 1 && (
+          <div className="import-strip-wrap">
+            <p className="import-strip-label">タップしてメイン写真を選ぶ（{boardOn ? '黒板が付くのはメイン写真だけ。' : ''}ほかは追加写真になります）</p>
+            <ul className="import-strip">
+              {items.map((it, i) => (
+                <li key={it.url}>
+                  <button
+                    type="button"
+                    className={`import-thumb ${i === mainIndex ? 'is-main' : ''}`}
+                    onClick={() => setMainIndex(i)}
+                    disabled={saving != null}
+                    aria-label={i === mainIndex ? `メイン写真（${i + 1}枚目）` : `${i + 1}枚目をメイン写真にする`}
+                    aria-pressed={i === mainIndex}
+                  >
+                    <img src={it.url} alt="" />
+                    <span>{i === mainIndex ? 'メイン' : '追加'}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="import-row">
-          <label className={`import-date ${item?.needsCheck ? 'needs-check' : ''}`}>
+          <label className={`import-date ${needsCheck ? 'needs-check' : ''}`}>
             <span>撮影日</span>
             <input
               type="date"
-              value={item?.date ?? ''}
-              onChange={(e) => updateItem({ date: e.target.value, needsCheck: false })}
+              value={date}
+              onChange={(e) => setDateOverride({ index: mainIndex, date: e.target.value, confirmed: true })}
             />
           </label>
-          {item?.needsCheck && <span className="import-check-badge">日付要確認</span>}
-          {item?.needsCheck && (
-            <button type="button" className="import-check-ok" onClick={() => updateItem({ needsCheck: false })}>
+          {needsCheck && <span className="import-check-badge">日付要確認</span>}
+          {needsCheck && (
+            <button type="button" className="import-check-ok" onClick={() => setDateOverride({ index: mainIndex, date, confirmed: true })}>
               この日付でOK
             </button>
           )}
-          <span className="import-geo">{item?.geo ? '位置情報あり' : '位置情報なし'}</span>
+          <span className="import-geo">{main?.geo ? '位置情報あり' : '位置情報なし'}</span>
         </div>
-        {item?.needsCheck && <p className="import-check-hint">写真から撮影日を読み取れませんでした。撮影日をタップして確認してください（今日の日付が仮に入っています）</p>}
-        {boardOn && (
-          <div className="segmented inline dark">
-            <button className={!item?.ownLayout ? 'on' : ''} onClick={() => updateItem({ ownLayout: null })}>
-              全写真で共通の配置
-            </button>
-            <button className={item?.ownLayout ? 'on' : ''} onClick={() => item && !item.ownLayout && updateItem({ ownLayout: layoutFor(item) })}>
-              この写真だけ調整
-            </button>
-          </div>
-        )}
+        {needsCheck && <p className="import-check-hint">写真から撮影日を読み取れませんでした。撮影日をタップして確認してください（今日の日付が仮に入っています）</p>}
+
         {error && <p className="error">{error}</p>}
-        <div className="import-nav">
-          <button className="btn" disabled={index === 0 || saving != null} onClick={() => setIndex(index - 1)}>
-            前の写真
-          </button>
-          {index < items.length - 1 ? (
-            <button className="btn" disabled={saving != null} onClick={() => setIndex(index + 1)}>
-              次の写真
-            </button>
-          ) : null}
-          <button className="btn btn-primary" disabled={saving != null} onClick={saveAll}>
-            {saving ? `保存中 ${saving.done}/${saving.total}` : `${items.length}枚を保存`}
-          </button>
-        </div>
+        <button className="btn btn-primary btn-wide" disabled={saving != null} onClick={save}>
+          {saving ?? (extras.length > 0 ? `保存（メイン1枚＋追加写真${extras.length}枚）` : '保存')}
+        </button>
       </div>
     </div>
   );
