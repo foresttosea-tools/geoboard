@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { diag } from '../lib/diag';
 import { canvasToJpeg, composeWithBoard, releaseCanvas, scaledCopy } from '../lib/image';
 import type { BoardContent, CaptureMode } from '../types';
 import type { CaptureResult } from './CameraScreen';
@@ -9,9 +10,12 @@ interface Props {
   mode: CaptureMode;
   onRetake: () => void;
   onSave: () => Promise<void>;
+  /** 保存に時間がかかっているとき、一覧に戻る */
+  onGiveUp: () => void;
 }
 
-export function CaptureConfirm({ result, board, mode, onRetake, onSave }: Props) {
+export function CaptureConfirm({ result, board, mode, onRetake, onSave, onGiveUp }: Props) {
+  const [slow, setSlow] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +53,14 @@ export function CaptureConfirm({ result, board, mode, onRetake, onSave }: Props)
           {result.photo.width}×{result.photo.height}
         </p>
         {error && <p className="error">{error}</p>}
+        {slow && (
+          <div className="slow-save">
+            <p>保存に時間がかかっています。記録はすでに保存されている可能性があります。</p>
+            <button className="btn" onClick={onGiveUp}>
+              一覧に戻って確認する
+            </button>
+          </div>
+        )}
       </main>
       <footer className="bottombar bottombar-dark">
         <button className="btn" onClick={onRetake} disabled={saving}>撮り直し</button>
@@ -58,9 +70,17 @@ export function CaptureConfirm({ result, board, mode, onRetake, onSave }: Props)
           onClick={async () => {
             setSaving(true);
             setError(null);
+            diag('confirm:save-pressed');
+            // 20秒たっても終わらなければ、一覧に戻れるようにする
+            const watchdog = setTimeout(() => {
+              diag('confirm:slow');
+              setSlow(true);
+            }, 20_000);
             try {
               await onSave();
+              clearTimeout(watchdog);
             } catch (e) {
+              clearTimeout(watchdog);
               setError(`保存に失敗しました：${(e as Error).message}`);
               setSaving(false);
             }

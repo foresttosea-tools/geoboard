@@ -49,7 +49,15 @@ export function composeWithBoard(photo: HTMLCanvasElement, board: BoardContent, 
 }
 
 /** 画面の描画を一度挟む（重い処理の合間に「保存中…」などの表示を更新させるため） */
-export const yieldToUi = () => new Promise<void>((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+export const yieldToUi = () =>
+  new Promise<void>((r) => {
+    // アプリが裏に回っていると requestAnimationFrame は止まるので、時間でも抜ける
+    const t = setTimeout(r, 100);
+    requestAnimationFrame(() => {
+      clearTimeout(t);
+      setTimeout(r, 0);
+    });
+  });
 
 /** 大きいCanvasのメモリをすぐに解放する（特にiPhone・Androidのメモリ不足対策） */
 export function releaseCanvas(c: HTMLCanvasElement | null | undefined) {

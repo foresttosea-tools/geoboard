@@ -6,6 +6,7 @@ import { getProvider } from './sync/config';
 import { resetSyncState } from './sync/engine';
 import { useAuthSession, useSyncState } from './sync/hooks';
 import { Login } from './screens/Login';
+import { diag } from './lib/diag';
 import { prefs } from './lib/prefs';
 import { createLedger, updateLedger } from './lib/repo';
 import { saveCapture } from './lib/saveRecord';
@@ -251,8 +252,10 @@ function MainApp({ session }: { session: AuthSession }) {
               shotAt: screen.result.shotAt,
               source: 'camera',
             });
+            diag('confirm:navigate');
             setScreen({ name: 'records' });
           }}
+          onGiveUp={() => setScreen({ name: 'records' })}
         />
       );
     case 'import':

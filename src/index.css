@@ -478,3 +478,9 @@ button:disabled { opacity: 0.4; cursor: default; }
   padding: 10px 18px; border-radius: 999px; background: rgba(20, 33, 31, 0.92); color: #fff; font-size: 14px; font-weight: 700;
   white-space: nowrap; box-shadow: var(--shadow-lg); animation: fade 0.15s ease-out;
 }
+
+/* ---------- 診断・保存の見張り ---------- */
+.diag-text { width: 100%; margin-top: 10px; padding: 10px; border: 1.5px solid var(--c-border); border-radius: 10px; background: var(--c-bg); font-family: ui-monospace, Menlo, monospace; font-size: 11px; line-height: 1.5; }
+.slow-save { margin: 8px 16px; padding: 12px 14px; border-radius: 12px; background: #2a2416; color: #f5d25a; text-align: center; display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+.slow-save p { margin: 0; }
+.slow-save .btn { background: #1c1c1e; color: #fff; border-color: #444; box-shadow: none; }

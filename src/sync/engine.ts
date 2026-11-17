@@ -3,6 +3,7 @@ import type { Table } from 'dexie';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyTable<T> = Table<T, string, any>;
 import { db, onLocalChange, syncTransaction } from '../db';
+import { diag } from '../lib/diag';
 import { prefs } from '../lib/prefs';
 import type { ExtraPhoto, StoredImage, SyncStatus, WorkRecord } from '../types';
 import { getProvider } from './config';
@@ -145,6 +146,7 @@ async function uploadImages(images: StoredImage[], pathOf: (img: StoredImage) =>
   for (const img of images) {
     const path = pathOf(img);
     if (!img.uploaded) {
+      diag('sync:upload', `${img.kind} ${Math.round(img.blob.size / 1024)}KB`);
       await withRetry(() => provider.uploadFile(path, img.blob));
       await db.images.update(img.key, { uploaded: true });
     }
@@ -308,6 +310,8 @@ export async function syncNow(): Promise<void> {
   if (!session) return;
 
   setState({ running: true, offline: false, lastError: null });
+  const started = performance.now();
+  diag('sync:start');
   try {
     // 停止されていても、未送信のデータは先に送る（要件4.1）
     await push();
@@ -318,7 +322,9 @@ export async function syncNow(): Promise<void> {
     }
     await pull();
     setState({ lastSyncAt: new Date().toISOString(), authRequired: false });
+    diag('sync:done', `${Math.round(performance.now() - started)}ms`);
   } catch (e) {
+    diag('sync:error', e instanceof Error ? `${e.name}: ${e.message}` : String(e));
     if (e instanceof NetworkError) setState({ offline: !navigator.onLine, lastError: e.message });
     else if (e instanceof AuthRequiredError) setState({ authRequired: true, lastError: e.message });
     else setState({ lastError: message(e) });

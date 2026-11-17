@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { diag } from './diag';
 
 interface ZoomRange {
   min: number;
@@ -55,6 +56,8 @@ export function useCamera(active: boolean): CameraState {
         }
         const track = stream.getVideoTracks()[0];
         trackRef.current = track;
+        const st = track.getSettings?.() ?? {};
+        diag('camera:start', { w: st.width, h: st.height, zoom: (track.getCapabilities?.() as { zoom?: unknown })?.zoom ? 'hw' : 'digital' });
         const caps = (track.getCapabilities?.() ?? {}) as ZoomCapabilities;
         if (caps.zoom && caps.zoom.max > caps.zoom.min) {
           setHardwareZoom({ min: caps.zoom.min, max: caps.zoom.max, step: caps.zoom.step ?? 0.1 });
@@ -69,6 +72,7 @@ export function useCamera(active: boolean): CameraState {
         }
       } catch (e) {
         const err = e as DOMException;
+        diag('camera:error', `${err.name}: ${err.message}`);
         setError(
           err.name === 'NotAllowedError'
             ? 'カメラの使用が許可されていません。端末の設定でカメラへのアクセスを許可してください。'

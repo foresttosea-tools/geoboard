@@ -4,6 +4,7 @@ import { Icon } from '../components/Icon';
 import { containRect, useBoardGestures } from '../components/useBoardGestures';
 import { useCamera } from '../lib/camera';
 import { clampLayout, defaultLayout, grabVideoFrame } from '../lib/image';
+import { diag } from '../lib/diag';
 import { prefs, type Orientation } from '../lib/prefs';
 import { useGeolocation, useLevel, type GeoFix } from '../lib/sensors';
 import type { BoardContent, BoardLayout, CaptureMode } from '../types';
@@ -93,6 +94,7 @@ export function CameraScreen({ board, mode, onBack, onCaptured }: Props) {
     setBusy(true);
     try {
       const photo = grabVideoFrame(v, digitalZoom);
+      diag('camera:shoot', { vw: v.videoWidth, vh: v.videoHeight, w: photo.width, h: photo.height, zoom: digitalZoom });
       const l = boardOn && layout ? clampLayout(layout, photo.width, photo.height) : null;
       onCaptured({ photo, layout: l, geo, shotAt: new Date().toISOString() });
     } finally {

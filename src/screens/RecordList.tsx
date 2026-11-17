@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { diag } from '../lib/diag';
 import { SLOT_PLACE, SLOT_WORK, SLOT_WORKER } from '../blackboard/model';
 import { Icon } from '../components/Icon';
 import { SyncBar } from '../components/SyncBar';
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function RecordList({ ledger, customerName, onBack, onEditLedger, onShoot, onImport, onOpen }: Props) {
+  useEffect(() => diag('screen:records'), []);
   const fileInput = useRef<HTMLInputElement>(null);
   const [view, setView] = useState(prefs.getListView());
   const [order, setOrder] = useState(prefs.getListOrder());

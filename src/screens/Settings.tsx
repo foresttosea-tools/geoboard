@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Icon } from '../components/Icon';
 import { db } from '../db';
+import { clearDiag, diagText } from '../lib/diag';
 import { prefs } from '../lib/prefs';
 import { DEFAULT_SERVER, getProvider, getServerConfig, setServerConfig } from '../sync/config';
 import { countUnsent, resetSyncState, syncNow } from '../sync/engine';
@@ -135,6 +136,8 @@ export function Settings({ session, onBack }: Props) {
           </dl>
           <p className="hint">送信済みの写真は、端末には縮小版だけを残して容量を節約しています</p>
         </section>
+
+        <DiagCard />
 
         {isAdmin && <UserAdmin myId={session.userId} online={online} />}
         {isAdmin && <ServerConfigCard />}
@@ -313,6 +316,47 @@ function ServerConfigCard() {
           変更して再読み込み
         </button>
       </div>
+    </section>
+  );
+}
+
+/** 診断ログ（不具合の原因を調べるための記録） */
+function DiagCard() {
+  const [text, setText] = useState<string | null>(null);
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <section className="card">
+      <h2>診断ログ</h2>
+      <p className="hint">固まった・動かないなどの不具合があったときは、アプリを開き直してから「ログをコピー」を押し、チャットに貼ってください。写真やパスワードは含まれません</p>
+      <div className="row-actions">
+        <button
+          className="btn btn-primary"
+          onClick={async () => {
+            const t = diagText();
+            setText(t);
+            try {
+              await navigator.clipboard.writeText(t);
+              setMsg('コピーしました');
+            } catch {
+              setMsg('下の文章を長押しで選択してコピーしてください');
+            }
+          }}
+        >
+          ログをコピー
+        </button>
+        <button
+          className="btn"
+          onClick={() => {
+            clearDiag();
+            setText(null);
+            setMsg('ログを消しました');
+          }}
+        >
+          ログを消す
+        </button>
+      </div>
+      {msg && <p className="hint">{msg}</p>}
+      {text && <textarea className="diag-text" readOnly value={text} rows={8} onFocus={(e) => e.currentTarget.select()} />}
     </section>
   );
 }
