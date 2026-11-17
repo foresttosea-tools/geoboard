@@ -48,6 +48,26 @@ export function composeWithBoard(photo: HTMLCanvasElement, board: BoardContent, 
   return c;
 }
 
+/** 画面の描画を一度挟む（重い処理の合間に「保存中…」などの表示を更新させるため） */
+export const yieldToUi = () => new Promise<void>((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+
+/** 大きいCanvasのメモリをすぐに解放する（特にiPhone・Androidのメモリ不足対策） */
+export function releaseCanvas(c: HTMLCanvasElement | null | undefined) {
+  if (!c) return;
+  c.width = 0;
+  c.height = 0;
+}
+
+/** 表示用に縮小したCanvas（元の写真は変えない） */
+export function scaledCopy(src: HTMLCanvasElement, maxLongEdge: number): HTMLCanvasElement {
+  const scale = Math.min(1, maxLongEdge / Math.max(src.width, src.height));
+  const c = createCanvas(src.width * scale, src.height * scale);
+  const ctx = get2d(c);
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, 0, 0, c.width, c.height);
+  return c;
+}
+
 export function canvasToJpeg(c: HTMLCanvasElement, quality = JPEG_QUALITY): Promise<Blob> {
   return new Promise((resolve, reject) => {
     c.toBlob((b) => (b ? resolve(b) : reject(new Error('画像の変換に失敗しました'))), 'image/jpeg', quality);

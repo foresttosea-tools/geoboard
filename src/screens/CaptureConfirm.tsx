@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { composeWithBoard } from '../lib/image';
+import { useEffect, useState } from 'react';
+import { canvasToJpeg, composeWithBoard, releaseCanvas, scaledCopy } from '../lib/image';
 import type { BoardContent, CaptureMode } from '../types';
 import type { CaptureResult } from './CameraScreen';
 
@@ -15,9 +15,23 @@ export function CaptureConfirm({ result, board, mode, onRetake, onSave }: Props)
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const preview = useMemo(() => {
-    const c = result.layout && mode !== 'without_board' ? composeWithBoard(result.photo, board, result.layout) : result.photo;
-    return c.toDataURL('image/jpeg', 0.7);
+  // プレビューは縮小した写真で作る（大きい写真のまま変換すると数秒固まる端末があるため）
+  const [preview, setPreview] = useState<string | null>(null);
+  useEffect(() => {
+    let url: string | null = null;
+    let cancelled = false;
+    const small = scaledCopy(result.photo, 1600);
+    const c = result.layout && mode !== 'without_board' ? composeWithBoard(small, board, result.layout) : small;
+    canvasToJpeg(c, 0.8).then((blob) => {
+      if (cancelled) return;
+      url = URL.createObjectURL(blob);
+      setPreview(url);
+    });
+    if (c !== small) releaseCanvas(small);
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
   }, [result, board, mode]);
 
   return (
@@ -26,7 +40,7 @@ export function CaptureConfirm({ result, board, mode, onRetake, onSave }: Props)
         <h1>撮影確認</h1>
       </header>
       <main className="confirm-body">
-        <img src={preview} alt="撮影した写真" className="confirm-img" />
+        {preview ? <img src={preview} alt="撮影した写真" className="confirm-img" /> : <p className="confirm-meta">プレビューを作成しています…</p>}
         <p className="confirm-meta">
           {mode === 'without_board' ? '黒板なし' : mode === 'both' ? '黒板あり＋なし（両方）を保存' : '黒板ありを保存'}
           {' / '}

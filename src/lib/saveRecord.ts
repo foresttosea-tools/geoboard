@@ -1,6 +1,6 @@
 import { db, newId, nowIso } from '../db';
 import type { BoardContent, BoardLayout, CaptureMode, Handover, StoredImage, WorkRecord } from '../types';
-import { canvasToJpeg, composeWithBoard, makeThumbnail } from './image';
+import { canvasToJpeg, composeWithBoard, makeThumbnail, releaseCanvas, yieldToUi } from './image';
 import { prefs } from './prefs';
 import type { GeoFix } from './sensors';
 
@@ -25,10 +25,16 @@ export async function saveCapture(input: SaveInput): Promise<WorkRecord> {
   const composite = withBoard ? composeWithBoard(photo, board, layout) : null;
   const keepOriginal = mode !== 'with_board' || !withBoard;
 
+  // 重い変換の合間に画面の更新を挟み、使い終わった大きい画像はすぐに解放する
   const images: StoredImage[] = [];
-  if (composite) images.push({ key: `${id}:composite`, recordId: id, kind: 'composite', blob: await canvasToJpeg(composite) });
-  if (keepOriginal) images.push({ key: `${id}:original`, recordId: id, kind: 'original', blob: await canvasToJpeg(photo) });
+  await yieldToUi();
   images.push({ key: `${id}:thumb`, recordId: id, kind: 'thumb', blob: await makeThumbnail(composite ?? photo) });
+  if (composite) {
+    images.push({ key: `${id}:composite`, recordId: id, kind: 'composite', blob: await canvasToJpeg(composite) });
+    releaseCanvas(composite);
+    await yieldToUi();
+  }
+  if (keepOriginal) images.push({ key: `${id}:original`, recordId: id, kind: 'original', blob: await canvasToJpeg(photo) });
 
   const t = nowIso();
   const record: WorkRecord = {

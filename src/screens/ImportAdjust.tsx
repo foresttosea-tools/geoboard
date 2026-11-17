@@ -4,7 +4,7 @@ import { BoardCanvas } from '../components/BoardCanvas';
 import { Icon } from '../components/Icon';
 import { containRect, useBoardGestures } from '../components/useBoardGestures';
 import { readPhotoMeta } from '../lib/exif';
-import { clampLayout, defaultLayout, loadImageToCanvas, readImageSize } from '../lib/image';
+import { clampLayout, defaultLayout, loadImageToCanvas, readImageSize, releaseCanvas } from '../lib/image';
 import { prefs, type Orientation } from '../lib/prefs';
 import { saveCapture } from '../lib/saveRecord';
 import type { GeoFix } from '../lib/sensors';
@@ -165,6 +165,8 @@ export function ImportAdjust({ files, ledgerId, board, mode, handover, onBack, o
           source: 'import',
           shotDateNeedsCheck: it.needsCheck,
         });
+        // 次の写真の前に大きい画像のメモリを解放する（まとめて取り込むときのメモリ不足対策）
+        releaseCanvas(photo);
         setSaving({ done: i + 1, total: items.length });
       }
       onDone();
