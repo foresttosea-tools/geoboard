@@ -306,11 +306,14 @@ button:disabled { opacity: 0.4; cursor: default; }
   border-top: 1px solid var(--c-border);
 }
 .pager-btn {
-  display: inline-flex; align-items: center; gap: 2px; min-height: 44px; padding: 0 12px;
-  border: none; background: none; color: var(--brand); font-weight: 700; font-size: 14px; border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 2px; min-height: 44px; min-width: 104px; padding: 0 16px 0 12px;
+  border: none; border-radius: 12px; background: var(--brand); color: var(--on-brand); font-weight: 700; font-size: 15px;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--brand) 28%, transparent); transition: transform 0.1s, background-color 0.15s;
 }
-.pager-btn:last-child { justify-self: end; }
-.pager-btn:active:not(:disabled) { background: var(--brand-soft); }
+.pager-btn:first-child { justify-self: start; }
+.pager-btn:last-child { justify-self: end; padding: 0 12px 0 16px; }
+.pager-btn:active:not(:disabled) { background: var(--brand-strong); transform: scale(0.97); }
+.pager-btn:disabled { background: var(--c-surface-2); color: var(--c-muted); box-shadow: none; opacity: 1; border: 1px solid var(--c-border); }
 .pager-pos { font-size: 13px; font-weight: 700; color: var(--c-muted); font-variant-numeric: tabular-nums; }
 .flip { display: inline-flex; transform: scaleX(-1); }
 .slide-next { animation: slide-next 0.22s ease-out; }

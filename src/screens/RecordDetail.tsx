@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { BOARD_SLOTS, SLOT_DATE, formatBoardDate } from '../blackboard/model';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { ExtraPhotos } from '../components/ExtraPhotos';
@@ -23,8 +23,6 @@ interface Props {
 
 const MODE_LABEL = { with_board: '黒板ありのみ', without_board: '黒板なしのみ', both: '黒板あり＋なし（両方）' } as const;
 
-/** 横スワイプと判定する移動量（px） */
-const SWIPE_MIN = 60;
 
 type Notes = Handover & { memo: string };
 const savedNotes = (r: WorkRecord): Notes => ({ text: r.handover ?? '', inReport: r.handoverInReport ?? false, memo: r.memo ?? '' });
@@ -52,7 +50,6 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
   const prevId = index > 0 ? ids[index - 1] : null;
   const nextId = index >= 0 && index < ids.length - 1 ? ids[index + 1] : null;
 
-  const touch = useRef<{ x: number; y: number } | null>(null);
 
   if (!record) return null;
 
@@ -89,22 +86,6 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
   const goPrev = () => prevId && requestMove({ kind: 'go', id: prevId, dir: -1 });
   const goNext = () => nextId && requestMove({ kind: 'go', id: nextId, dir: 1 });
 
-  const onTouchStart = (e: React.TouchEvent) => {
-    // 入力欄の操作（文字選択など）はスワイプとみなさない
-    if ((e.target as HTMLElement).closest('textarea, input')) return;
-    touch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-  };
-  const onTouchEnd = (e: React.TouchEvent) => {
-    const start = touch.current;
-    touch.current = null;
-    if (!start) return;
-    const dx = e.changedTouches[0].clientX - start.x;
-    const dy = e.changedTouches[0].clientY - start.y;
-    if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-    if (dx < 0) goNext();
-    else goPrev();
-  };
-
   return (
     <div className="screen">
       <header className="appbar">
@@ -129,8 +110,6 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
       <main
         key={id}
         className={`screen-body ${slide ? `slide-${slide}` : ''}`}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
         onAnimationEnd={() => setSlide(null)}
       >
         <div className="detail-img">
@@ -219,7 +198,7 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
       {ids.length > 1 && (
         <footer className="pager">
           <button className="pager-btn" onClick={goPrev} disabled={!prevId} aria-label="前の記録">
-            <Icon name="back" size={20} />
+            <Icon name="back" size={18} />
             前へ
           </button>
           <span className="pager-pos">
@@ -228,7 +207,7 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
           <button className="pager-btn" onClick={goNext} disabled={!nextId} aria-label="次の記録">
             次へ
             <span className="flip">
-              <Icon name="back" size={20} />
+              <Icon name="back" size={18} />
             </span>
           </button>
         </footer>
