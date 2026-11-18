@@ -435,3 +435,18 @@ export async function countUnsent(): Promise<{ pending: number; failed: number }
   }
   return { pending, failed };
 }
+
+/**
+ * 端末のデータを消して、サーバーから取り直す（設定画面）。
+ * サーバーを管理画面で直接操作したあとなど、端末に古いデータが残っている場合に使う。
+ * ログイン状態と、黒板の配置などの端末の設定は残す
+ */
+export async function resetLocalData() {
+  // 同期の途中なら終わるのを待つ（書き込み中に消さないため）
+  for (let i = 0; i < 100 && state.running; i++) await sleep(200);
+  diag('reset-local');
+  await db.transaction('rw', [db.customers, db.ledgers, db.records, db.images, db.templates, db.extras, db.profiles, db.meta], async () => {
+    await Promise.all([db.customers, db.ledgers, db.records, db.images, db.templates, db.extras, db.profiles, db.meta].map((t) => t.clear()));
+  });
+  prefs.setLastLedger(null);
+}

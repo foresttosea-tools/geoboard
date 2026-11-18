@@ -6,7 +6,7 @@ import { db } from '../db';
 import { clearDiag, diagText } from '../lib/diag';
 import { prefs } from '../lib/prefs';
 import { DEFAULT_SERVER, getProvider, getServerConfig, setServerConfig } from '../sync/config';
-import { countUnsent, resetSyncState, syncNow } from '../sync/engine';
+import { countUnsent, resetLocalData, resetSyncState, syncNow } from '../sync/engine';
 import { useMyProfile, useOnline, useSyncState, useUnsent } from '../sync/hooks';
 import type { AuthSession } from '../sync/provider';
 import type { Profile } from '../types';
@@ -29,6 +29,15 @@ export function Settings({ session, onBack }: Props) {
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null);
   const [logout, setLogout] = useState<number | null>(null);
+  const [reset, setReset] = useState<number | null>(null);
+  const [resetting, setResetting] = useState(false);
+
+  const doReset = async () => {
+    setResetting(true);
+    await resetLocalData();
+    // アプリを読み込み直すと、サーバーの最新の内容を取り込む
+    location.reload();
+  };
 
   useEffect(() => {
     navigator.storage?.persisted?.().then(setPersisted).catch(() => setPersisted(null));
@@ -135,6 +144,17 @@ export function Settings({ session, onBack }: Props) {
             </div>
           </dl>
           <p className="hint">送信済みの写真は、端末には縮小版だけを残して容量を節約しています</p>
+          <button
+            className="btn btn-wide"
+            disabled={!online}
+            onClick={async () => {
+              const { pending, failed } = await countUnsent();
+              setReset(pending + failed);
+            }}
+          >
+            {online ? 'この端末のデータを消して、サーバーから取り直す' : '圏外のため取り直せません'}
+          </button>
+          <p className="hint">サーバーのデータを管理画面で直接消したあとなど、この端末に古いデータが残っているときに使います。ログインしたままになります</p>
         </section>
 
         <section className="card">
@@ -155,6 +175,39 @@ export function Settings({ session, onBack }: Props) {
           {new Date(__BUILD_TIME__).toLocaleString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })} 公開（{__BUILD_COMMIT__}）
         </p>
       </main>
+
+      {reset != null && (
+        <ConfirmDialog
+          title={reset > 0 ? '未送信のデータがあります' : '端末のデータを取り直しますか？'}
+          message={
+            reset > 0
+              ? `送信されていないデータが${reset}件あります。消すと元に戻せません。先に送信してから取り直すことをおすすめします。`
+              : 'この端末の顧客・台帳・記録・写真を消して、サーバーの最新の内容を取り込み直します。サーバーのデータは変わりません。'
+          }
+          onDismiss={() => !resetting && setReset(null)}
+          actions={
+            reset > 0
+              ? [
+                  {
+                    label: resetting ? '取り直しています…' : '送信してから取り直す',
+                    variant: 'primary',
+                    onClick: async () => {
+                      await syncNow();
+                      const { pending, failed } = await countUnsent();
+                      if (pending + failed === 0) await doReset();
+                      else setReset(pending + failed);
+                    },
+                  },
+                  { label: '未送信も含めて消す', variant: 'danger', onClick: doReset },
+                  { label: 'キャンセル', onClick: () => setReset(null) },
+                ]
+              : [
+                  { label: resetting ? '取り直しています…' : '取り直す', variant: 'primary', onClick: doReset },
+                  { label: 'キャンセル', onClick: () => setReset(null) },
+                ]
+          }
+        />
+      )}
 
       {logout != null && (
         <ConfirmDialog
