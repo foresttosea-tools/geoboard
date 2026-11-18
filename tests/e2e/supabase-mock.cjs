@@ -60,6 +60,9 @@ function createMock() {
           for (const k of Object.keys(r)) if (!columns[t].includes(k)) errors.push(`${t}: unknown column "${k}"`);
           if (t === 'records' && failRecordIds.has(r.id)) return json(500, { message: 'テスト用のサーバーエラー' });
           if (me?.disabled && !['records', 'record_extras'].includes(t)) return json(400, { message: 'アカウントが停止されています' });
+          // 外部キー（本物のデータベースと同じく、親がないと登録できない）
+          const fk = { ledgers: ['customer_id', 'customers'], records: ['ledger_id', 'ledgers'], record_extras: ['record_id', 'records'] }[t];
+          if (fk && !store[fk[1]].has(r[fk[0]])) return json(409, { code: '23503', message: `insert or update on table "${t}" violates foreign key constraint "${t}_${fk[0]}_fkey"` });
           const prev = store[t].get(r.id);
           if (prev && r.updated_at < prev.updated_at) continue;
           // 論理削除の権限（本物のguard_soft_deleteと同じ）

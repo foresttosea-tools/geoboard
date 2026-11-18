@@ -450,3 +450,29 @@ export async function resetLocalData() {
   });
   prefs.setLastLedger(null);
 }
+
+/** 実行中の同期が終わるまで待つ */
+async function waitIdle(timeoutMs = 60_000) {
+  const start = Date.now();
+  while (state.running && Date.now() - start < timeoutMs) await sleep(200);
+}
+
+/**
+ * 未送信・送信失敗のデータをすべて送り直し、残った件数と理由を返す（端末のデータを取り直す前などに使う）
+ */
+export async function sendAllPending(): Promise<{ pending: number; failed: number; reasons: string[] }> {
+  await waitIdle();
+  await retryFailed();
+  // 同期が予約・実行中なら、それも終わるのを待つ
+  await sleep(300);
+  await waitIdle();
+  const { pending, failed } = await countUnsent();
+  const reasons = new Set<string>();
+  const tables = [db.customers, db.ledgers, db.records, db.extras, db.templates] as AnyTable<Syncable & { syncError?: string }>[];
+  for (const t of tables) {
+    const rows = await t.where('syncStatus').equals('failed').limit(5).toArray();
+    rows.forEach((r) => r.syncError && reasons.add(/foreign key/i.test(r.syncError) ? '属する顧客・台帳がサーバーにありません' : r.syncError));
+  }
+  if (state.offline) reasons.add('圏外のため送信できませんでした');
+  return { pending, failed, reasons: [...reasons].slice(0, 3) };
+}

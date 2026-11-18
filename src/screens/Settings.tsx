@@ -6,7 +6,7 @@ import { db } from '../db';
 import { clearDiag, diagText } from '../lib/diag';
 import { prefs } from '../lib/prefs';
 import { DEFAULT_SERVER, getProvider, getServerConfig, setServerConfig } from '../sync/config';
-import { countUnsent, resetLocalData, resetSyncState, syncNow } from '../sync/engine';
+import { countUnsent, resetLocalData, resetSyncState, sendAllPending, syncNow } from '../sync/engine';
 import { useMyProfile, useOnline, useSyncState, useUnsent } from '../sync/hooks';
 import type { AuthSession } from '../sync/provider';
 import type { Profile } from '../types';
@@ -30,10 +30,11 @@ export function Settings({ session, onBack }: Props) {
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null);
   const [logout, setLogout] = useState<number | null>(null);
   const [reset, setReset] = useState<number | null>(null);
-  const [resetting, setResetting] = useState(false);
+  const [resetting, setResetting] = useState<'sending' | 'clearing' | null>(null);
+  const [resetNote, setResetNote] = useState<string | null>(null);
 
   const doReset = async () => {
-    setResetting(true);
+    setResetting('clearing');
     await resetLocalData();
     // アプリを読み込み直すと、サーバーの最新の内容を取り込む
     location.reload();
@@ -149,6 +150,7 @@ export function Settings({ session, onBack }: Props) {
             disabled={!online}
             onClick={async () => {
               const { pending, failed } = await countUnsent();
+              setResetNote(null);
               setReset(pending + failed);
             }}
           >
@@ -180,26 +182,41 @@ export function Settings({ session, onBack }: Props) {
         <ConfirmDialog
           title={reset > 0 ? '未送信のデータがあります' : '端末のデータを取り直しますか？'}
           message={
-            reset > 0
+            resetNote ??
+            (reset > 0
               ? `送信されていないデータが${reset}件あります。消すと元に戻せません。先に送信してから取り直すことをおすすめします。`
-              : 'この端末の顧客・台帳・記録・写真を消して、サーバーの最新の内容を取り込み直します。サーバーのデータは変わりません。'
+              : 'この端末の顧客・台帳・記録・写真を消して、サーバーの最新の内容を取り込み直します。サーバーのデータは変わりません。')
           }
           onDismiss={() => !resetting && setReset(null)}
           actions={
             reset > 0
               ? [
-                  {
-                    label: resetting ? '取り直しています…' : '送信してから取り直す',
-                    variant: 'primary',
-                    onClick: async () => {
-                      await syncNow();
-                      const { pending, failed } = await countUnsent();
-                      if (pending + failed === 0) await doReset();
-                      else setReset(pending + failed);
-                    },
-                  },
+                  ...(resetNote
+                    ? []
+                    : [
+                        {
+                          label: resetting === 'sending' ? '送信しています…' : resetting === 'clearing' ? '取り直しています…' : '送信してから取り直す',
+                          variant: 'primary' as const,
+                          onClick: async () => {
+                            if (resetting) return;
+                            setResetting('sending');
+                            const r = await sendAllPending();
+                            const left = r.pending + r.failed;
+                            if (left === 0) {
+                              await doReset();
+                              return;
+                            }
+                            setResetting(null);
+                            setReset(left);
+                            setResetNote(
+                              `${left}件のデータは送信できませんでした。${r.reasons.length ? `（理由：${r.reasons.join('／')}）` : ''}` +
+                                'サーバーで顧客や台帳を直接消した場合、それに属するデータは送れません。消してよければ「未送信も含めて消す」を押してください。',
+                            );
+                          },
+                        },
+                      ]),
                   { label: '未送信も含めて消す', variant: 'danger', onClick: doReset },
-                  { label: 'キャンセル', onClick: () => setReset(null) },
+                  { label: 'キャンセル', onClick: () => !resetting && setReset(null) },
                 ]
               : [
                   { label: resetting ? '取り直しています…' : '取り直す', variant: 'primary', onClick: doReset },
