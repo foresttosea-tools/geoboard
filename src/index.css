@@ -496,3 +496,4 @@ button:disabled { opacity: 0.4; cursor: default; }
 .import-thumb.is-main { border-color: var(--brand); }
 .import-thumb.is-main img { opacity: 1; }
 .import-thumb.is-main span { background: var(--brand); }
+.viewer-notice { position: absolute; left: 16px; right: 16px; bottom: calc(80px + var(--safe-bottom)); padding: 10px 14px; border-radius: 12px; background: rgba(40, 33, 20, 0.95); color: #f5d25a; font-size: 13px; font-weight: 700; text-align: center; line-height: 1.5; }

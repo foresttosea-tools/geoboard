@@ -1,7 +1,10 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { SLOT_PLACE, SLOT_WORK } from '../blackboard/model';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { db, nowIso } from '../db';
+import { DELETE_DENIED_MESSAGE, canDeleteOwnOrAdmin } from '../lib/permissions';
+import { useMyProfile } from '../sync/hooks';
 import type { BoardTemplate } from '../types';
 import { Icon } from '../components/Icon';
 
@@ -12,6 +15,8 @@ interface Props {
 
 export function TemplateList({ onBack, onPick }: Props) {
   const [sort, setSort] = useState<'recent' | 'name'>('recent');
+  const me = useMyProfile();
+  const [denied, setDenied] = useState(false);
   const [q, setQ] = useState('');
   const templates = useLiveQuery(() => db.templates.filter((t) => !t.deletedAt).toArray(), []);
 
@@ -55,6 +60,10 @@ export function TemplateList({ onBack, onPick }: Props) {
                 className="icon-btn danger"
                 aria-label={`${t.name}を削除`}
                 onClick={async () => {
+                  if (!canDeleteOwnOrAdmin(me, t.createdBy)) {
+                    setDenied(true);
+                    return;
+                  }
                   if (confirm(`「${t.name}」を削除しますか？`)) {
                     const now = nowIso();
                     await db.templates.update(t.id, { deletedAt: now, updatedAt: now });
@@ -67,6 +76,14 @@ export function TemplateList({ onBack, onPick }: Props) {
           ))}
         </ul>
       </main>
+      {denied && (
+        <ConfirmDialog
+          title="この黒板は削除できません"
+          message={DELETE_DENIED_MESSAGE}
+          onDismiss={() => setDenied(false)}
+          actions={[{ label: 'OK', variant: 'primary', onClick: () => setDenied(false) }]}
+        />
+      )}
     </div>
   );
 }

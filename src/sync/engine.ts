@@ -40,6 +40,8 @@ export interface SyncState {
   authRequired: boolean;
   /** 管理者によってアカウントが停止された */
   accountDisabled: boolean;
+  /** 利用者に一度だけ知らせたいこと */
+  notice: string | null;
 }
 
 let state: SyncState = {
@@ -50,6 +52,7 @@ let state: SyncState = {
   offline: typeof navigator !== 'undefined' ? !navigator.onLine : false,
   authRequired: false,
   accountDisabled: false,
+  notice: null,
 };
 const listeners = new Set<() => void>();
 const setState = (patch: Partial<SyncState>) => {
@@ -73,7 +76,9 @@ async function withRetry<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
     } catch (e) {
-      if (e instanceof NetworkError || e instanceof AuthRequiredError || attempt >= delays.length) throw e;
+      // 権限やアカウント停止による拒否は、やり直しても結果が変わらないので再試行しない
+      const permanent = e instanceof Error && /権限がありません|停止されています/.test(e.message);
+      if (e instanceof NetworkError || e instanceof AuthRequiredError || permanent || attempt >= delays.length) throw e;
       await sleep(delays[attempt]);
     }
   }
@@ -101,9 +106,23 @@ async function markSynced<T extends Syncable>(table: AnyTable<T>, sent: T[], ext
 }
 
 async function markFailed<T extends Syncable>(table: AnyTable<T>, id: string, error: string) {
+  // 権限がなくて削除を断られた場合は、送信失敗にせず端末の削除を取り消す（次の受信でサーバーの内容に戻る）
+  if (/削除する権限がありません/.test(error)) {
+    await syncTransaction([table], async () => {
+      await table.update(id, { deletedAt: null, syncStatus: 'synced', syncError: undefined } as never);
+    });
+    await db.meta.delete(`pull.${tableToRemote(table)}`);
+    setState({ notice: '他の人が作成したものは削除できないため、元に戻しました' });
+    diag('sync:delete-denied', id);
+    return;
+  }
   await syncTransaction([table], async () => {
     await table.update(id, { syncStatus: 'failed', syncError: error } as never);
   });
+}
+
+function tableToRemote(table: { name: string }): string {
+  return ({ customers: 'customers', ledgers: 'ledgers', records: 'records', extras: 'record_extras', templates: 'blackboard_templates' } as Record<string, string>)[table.name] ?? table.name;
 }
 
 /** 顧客・台帳・作成した黒板：まとめて送り、失敗したら1件ずつ送って原因の行を特定する */
@@ -397,6 +416,10 @@ export function startAutoSync() {
 }
 
 /** ログアウト時などに状態を初期化する */
+export function clearSyncNotice() {
+  setState({ notice: null });
+}
+
 export function resetSyncState() {
   setState({ authRequired: false, accountDisabled: false, lastError: null, lastSyncAt: null });
 }

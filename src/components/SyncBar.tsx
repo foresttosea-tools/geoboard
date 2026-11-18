@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { prefs } from '../lib/prefs';
 import { getProvider } from '../sync/config';
-import { resetSyncState, retryFailed } from '../sync/engine';
+import { clearSyncNotice, resetSyncState, retryFailed } from '../sync/engine';
 import { useOnline, useSyncState, useUnsent } from '../sync/hooks';
 
 /**
@@ -31,6 +31,9 @@ export function SyncBar() {
         },
       },
     });
+  }
+  if (sync.notice) {
+    items.push({ tone: 'warn', text: sync.notice, action: { label: 'OK', onClick: clearSyncNotice } });
   }
   if (sync.running && sync.progress) {
     items.push({ tone: 'info', text: `送信中 ${sync.progress.done} / ${sync.progress.total}件` });

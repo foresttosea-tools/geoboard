@@ -3,6 +3,8 @@ import { useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { db } from '../db';
 import { addExtraPhotos, deleteExtraPhoto } from '../lib/extraPhotos';
+import { DELETE_DENIED_MESSAGE, canDeleteOwnOrAdmin } from '../lib/permissions';
+import { useMyProfile } from '../sync/hooks';
 import type { ExtraPhoto } from '../types';
 import { Icon } from './Icon';
 import { useImageUrl } from '../sync/images';
@@ -18,6 +20,8 @@ export function ExtraPhotos({ recordId }: { recordId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [viewing, setViewing] = useState<number | null>(null);
+  const me = useMyProfile();
+  const [viewerNotice, setViewerNotice] = useState<string | null>(null);
 
   const onFiles = async (files: FileList | null, source: ExtraPhoto['source']) => {
     if (!files || files.length === 0) return;
@@ -93,7 +97,14 @@ export function ExtraPhotos({ recordId }: { recordId: string }) {
           index={viewing}
           onIndex={setViewing}
           onClose={() => setViewing(null)}
+          notice={viewerNotice}
           onDelete={async (id) => {
+            const target = list.find((x) => x.id === id);
+            if (!canDeleteOwnOrAdmin(me, target?.createdBy)) {
+              setViewerNotice(DELETE_DENIED_MESSAGE);
+              setTimeout(() => setViewerNotice(null), 3500);
+              return;
+            }
             if (!confirm('この追加写真を削除しますか？')) return;
             await deleteExtraPhoto(id);
             const remaining = list.length - 1;
@@ -116,10 +127,11 @@ interface ViewerProps {
   onIndex: (i: number) => void;
   onClose: () => void;
   onDelete: (id: string) => void;
+  notice?: string | null;
 }
 
 /** 追加写真の全画面表示。左右スワイプで前後の追加写真に移動 */
-function ExtraViewer({ extras, index, onIndex, onClose, onDelete }: ViewerProps) {
+function ExtraViewer({ extras, index, onIndex, onClose, onDelete, notice }: ViewerProps) {
   const x = extras[index];
   const full = useImageUrl(`${x.id}:extra`, x.path);
   const thumb = useImageUrl(`${x.id}:extra_thumb`, x.thumbPath);
@@ -162,6 +174,11 @@ function ExtraViewer({ extras, index, onIndex, onClose, onDelete }: ViewerProps)
         </button>
       </div>
       <div className="viewer-img">{url && <img key={x.id} src={url} alt={`追加写真 ${index + 1}`} draggable={false} />}</div>
+      {notice && (
+        <div className="viewer-notice" role="status">
+          {notice}
+        </div>
+      )}
       <div className="viewer-nav">
         <button className="cam-btn cam-round" onClick={prev} disabled={!prev} aria-label="前の写真">
           <Icon name="back" />

@@ -62,6 +62,11 @@ function createMock() {
           if (me?.disabled && !['records', 'record_extras'].includes(t)) return json(400, { message: 'アカウントが停止されています' });
           const prev = store[t].get(r.id);
           if (prev && r.updated_at < prev.updated_at) continue;
+          // 論理削除の権限（本物のguard_soft_deleteと同じ）
+          if (prev && r.deleted_at && !prev.deleted_at && me?.role !== 'admin') {
+            const own = ['records', 'record_extras', 'blackboard_templates'].includes(t) && prev.created_by === uid;
+            if (!own) return json(400, { code: 'P0001', message: '削除する権限がありません' });
+          }
           const row = { ...prev, ...r, server_updated_at: tick() };
           if (!prev) row.created_by = uid;
           if (t === 'customers' && !row.is_provisional && !row.code) row.code = 'C-' + String(++codeSeq).padStart(4, '0');

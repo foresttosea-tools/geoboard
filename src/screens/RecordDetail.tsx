@@ -10,6 +10,8 @@ import { Marks } from '../components/RecordMarks';
 import { useImageUrl } from '../sync/images';
 import { db, deleteRecord, nowIso } from '../db';
 import { canFixBoard, confirmShotDate } from '../lib/editRecord';
+import { DELETE_DENIED_MESSAGE, canDeleteOwnOrAdmin } from '../lib/permissions';
+import { useMyProfile } from '../sync/hooks';
 import { SLOT_DATE as DATE_SLOT, todayIsoDate } from '../blackboard/model';
 import type { Handover, WorkRecord } from '../types';
 
@@ -31,6 +33,8 @@ const savedNotes = (r: WorkRecord): Notes => ({ text: r.handover ?? '', inReport
 export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props) {
   const record = useLiveQuery(() => db.records.get(id), [id]);
   const [showOriginal, setShowOriginal] = useState(false);
+  const me = useMyProfile();
+  const [denied, setDenied] = useState(false);
   // 黒板なしのみの記録は原本だけ。両方の記録は切り替えで原本を表示
   const useOriginal = showOriginal || record?.mode === 'without_board';
   const image = useImageUrl(
@@ -98,6 +102,10 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
           className="icon-btn danger"
           aria-label="削除"
           onClick={async () => {
+            if (!canDeleteOwnOrAdmin(me, record.createdBy)) {
+              setDenied(true);
+              return;
+            }
             if (confirm('この記録を削除しますか？')) {
               await deleteRecord(id);
               onBack();
@@ -212,6 +220,15 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
             </span>
           </button>
         </footer>
+      )}
+
+      {denied && (
+        <ConfirmDialog
+          title="この記録は削除できません"
+          message={DELETE_DENIED_MESSAGE}
+          onDismiss={() => setDenied(false)}
+          actions={[{ label: 'OK', variant: 'primary', onClick: () => setDenied(false) }]}
+        />
       )}
 
       {pending && (
