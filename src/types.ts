@@ -30,6 +30,8 @@ export interface Customer {
   name: string;
   /** 仮顧客（圏外で作成した未確定の顧客） */
   isProvisional: boolean;
+  /** 仮顧客を既存の顧客に紐づけたときの紐づけ先 */
+  mergedInto?: string | null;
   /** 作成者のユーザーID */
   createdBy: string;
   createdAt: string;

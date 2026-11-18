@@ -50,6 +50,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // PC管理画面だけで使う大きいライブラリは、スマホのオフライン用キャッシュに入れない
+        globIgnores: ['**/pdfmake-*.js', '**/leaflet-*.js', '**/leaflet-*.css', '**/jszip*.js', '**/AdminApp-*.js'],
         navigateFallback: `${base}index.html`,
       },
     }),

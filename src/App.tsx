@@ -1,14 +1,15 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { SLOT_CUSTOMER, SLOT_WORKER, createDefaultBoard, normalizeBoard, withToday } from './blackboard/model';
 import { db, requestPersistentStorage } from './db';
 import { getProvider } from './sync/config';
 import { resetSyncState } from './sync/engine';
-import { useAuthSession, useSyncState } from './sync/hooks';
+import { useAuthSession, useMyProfile, useSyncState } from './sync/hooks';
 import { Login } from './screens/Login';
+const AdminApp = lazy(() => import('./admin/AdminApp').then((m) => ({ default: m.AdminApp })));
 import { diag } from './lib/diag';
 import { prefs } from './lib/prefs';
-import { createLedger, updateLedger } from './lib/repo';
+import { createLedger, deleteLedger, updateLedger } from './lib/repo';
 import { saveCapture } from './lib/saveRecord';
 import { requestMotionPermission } from './lib/sensors';
 import { BoardEditor } from './screens/BoardEditor';
@@ -64,6 +65,12 @@ export default function App() {
   const session = useAuthSession();
   const sync = useSyncState();
   const [loginNotice, setLoginNotice] = useState<string | null>(null);
+  const [hash, setHash] = useState(() => location.hash);
+  useEffect(() => {
+    const on = () => setHash(location.hash);
+    window.addEventListener('hashchange', on);
+    return () => window.removeEventListener('hashchange', on);
+  }, []);
 
   // 管理者に停止されたら、未送信データを送り終えた時点でログアウトする（要件4.1）
   useEffect(() => {
@@ -78,10 +85,19 @@ export default function App() {
 
   if (session === undefined) return <div className="splash">GeoBoard</div>;
   if (session === null) return <Login notice={loginNotice} />;
+  // PC管理画面は別のURL（…/geoboard/#admin）で開く
+  if (hash === '#admin')
+    return (
+      <Suspense fallback={<div className="splash">GeoBoard 管理画面</div>}>
+        <AdminApp session={session} />
+      </Suspense>
+    );
   return <MainApp session={session} />;
 }
 
 function MainApp({ session }: { session: AuthSession }) {
+  const me = useMyProfile();
+  const isAdmin = me?.role === 'admin' && !me.disabled;
   // 前回開いていた台帳から再開する
   const [ledgerId, setLedgerId] = useState<string | null>(() => prefs.getLastLedger());
   const [screen, setScreen] = useState<Screen>(() => (prefs.getLastLedger() ? { name: 'records' } : { name: 'customers' }));
@@ -173,6 +189,16 @@ function MainApp({ session }: { session: AuthSession }) {
             await updateLedger(ledger!.id, input);
             setScreen({ name: 'records' });
           }}
+          onDelete={
+            isAdmin
+              ? async () => {
+                  if (!confirm(`台帳「${ledger!.name}」を削除しますか？\nPC管理画面の「削除済みデータ」から元に戻せます。`)) return;
+                  await deleteLedger(ledger!.id);
+                  prefs.setLastLedger(null);
+                  setScreen({ name: 'ledgers', customerId: ledger!.customerId });
+                }
+              : undefined
+          }
         />
       );
     case 'records':

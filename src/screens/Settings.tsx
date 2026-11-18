@@ -137,6 +137,12 @@ export function Settings({ session, onBack }: Props) {
           <p className="hint">送信済みの写真は、端末には縮小版だけを残して容量を節約しています</p>
         </section>
 
+        <section className="card">
+          <h2>PC管理画面</h2>
+          <p className="hint">PCのブラウザで次のURLを開くと、台帳の一覧・地図・PDFレポート・ZIPダウンロードなどが使えます。ブックマークしておくと便利です</p>
+          <p className="admin-url">{`${location.origin}${import.meta.env.BASE_URL}#admin`}</p>
+        </section>
+
         <DiagCard />
 
         {isAdmin && <UserAdmin myId={session.userId} online={online} />}
@@ -213,7 +219,7 @@ function DisplayNameField({ me, online }: { me: Profile | undefined; online: boo
 }
 
 /** ユーザー管理（管理者のみ。要件4.2） */
-function UserAdmin({ myId, online }: { myId: string; online: boolean }) {
+export function UserAdmin({ myId, online }: { myId: string; online: boolean }) {
   const profiles = useLiveQuery(() => db.profiles.toArray(), []);
   const [error, setError] = useState<string | null>(null);
 

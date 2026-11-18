@@ -4,7 +4,8 @@ import { Icon } from '../components/Icon';
 import { SyncBar } from '../components/SyncBar';
 import { useOnline } from '../sync/hooks';
 import { db } from '../db';
-import { createCustomer, normalizeForSearch, renameCustomer } from '../lib/repo';
+import { createCustomer, deleteCustomer, normalizeForSearch, renameCustomer } from '../lib/repo';
+import { useMyProfile } from '../sync/hooks';
 import type { Customer } from '../types';
 
 interface Props {
@@ -17,6 +18,8 @@ export function CustomerList({ onOpen, onSettings }: Props) {
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<Customer | 'new' | null>(null);
   const online = useOnline();
+  const me = useMyProfile();
+  const isAdmin = me?.role === 'admin' && !me.disabled;
   const customers = useLiveQuery(() => db.customers.filter((c) => !c.deletedAt).toArray(), []);
   const ledgers = useLiveQuery(() => db.ledgers.filter((l) => !l.deletedAt).toArray(), []);
 
@@ -104,6 +107,16 @@ export function CustomerList({ onOpen, onSettings }: Props) {
           }
           existingNames={(customers ?? []).filter((c) => editing === 'new' || c.id !== editing.id).map((c) => c.name)}
           onCancel={() => setEditing(null)}
+          onDelete={
+            editing !== 'new' && isAdmin
+              ? async () => {
+                  if (confirm(`顧客「${editing.name}」を削除しますか？\n台帳も一覧に表示されなくなります。PC管理画面の「削除済みデータ」から元に戻せます。`)) {
+                    await deleteCustomer(editing.id);
+                    setEditing(null);
+                  }
+                }
+              : undefined
+          }
           onSave={async (name) => {
             if (editing === 'new') {
               // 圏外では仮顧客として作成する（要件6.1）
@@ -128,9 +141,10 @@ interface NameSheetProps {
   existingNames: string[];
   onCancel: () => void;
   onSave: (name: string) => void;
+  onDelete?: () => void;
 }
 
-function NameSheet({ title, initial, note, existingNames, onCancel, onSave }: NameSheetProps) {
+function NameSheet({ title, initial, note, existingNames, onCancel, onSave, onDelete }: NameSheetProps) {
   const [name, setName] = useState(initial);
   const dup = existingNames.some((n) => normalizeForSearch(n) === normalizeForSearch(name));
   return (
@@ -154,6 +168,11 @@ function NameSheet({ title, initial, note, existingNames, onCancel, onSave }: Na
           <button type="button" className="btn" onClick={onCancel}>キャンセル</button>
           <button type="submit" className="btn btn-primary" disabled={!name.trim()}>保存</button>
         </div>
+        {onDelete && (
+          <button type="button" className="btn btn-danger btn-wide sheet-delete" onClick={onDelete}>
+            この顧客を削除（管理者）
+          </button>
+        )}
       </form>
     </div>
   );

@@ -8,12 +8,14 @@ interface Props {
   initial?: LedgerInput;
   onBack: () => void;
   onSave: (input: LedgerInput) => Promise<void>;
+  /** 台帳の削除（管理者のみ。編集時） */
+  onDelete?: () => void;
 }
 
 const EMPTY: LedgerInput = { name: '', startDate: '', endDate: '', manager: '', note: '' };
 
 /** S06 台帳登録・編集 */
-export function LedgerForm({ title, customerName, initial, onBack, onSave }: Props) {
+export function LedgerForm({ title, customerName, initial, onBack, onSave, onDelete }: Props) {
   const [v, setV] = useState<LedgerInput>(initial ?? EMPTY);
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof LedgerInput>(k: K, value: LedgerInput[K]) => setV({ ...v, [k]: value });
@@ -71,6 +73,11 @@ export function LedgerForm({ title, customerName, initial, onBack, onSave }: Pro
           <span>備考</span>
           <textarea rows={4} value={v.note} onChange={(e) => set('note', e.target.value)} />
         </label>
+        {onDelete && (
+          <button type="button" className="btn btn-danger btn-wide sheet-delete" onClick={onDelete}>
+            この台帳を削除（管理者）
+          </button>
+        )}
       </form>
       <footer className="bottombar">
         <button type="submit" form="ledger-form" className="btn btn-primary btn-wide" disabled={!canSave}>
