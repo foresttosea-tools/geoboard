@@ -55,7 +55,10 @@ export function SyncBar() {
     });
   }
   if (!online && unsent.pending > 0) {
-    items.push({ tone: 'warn', text: `圏外です。未送信${unsent.pending}件は電波が戻ったら自動で送信します` });
+    items.push({
+      tone: 'warn',
+      text: unsent.records > 0 ? `圏外です。未送信の記録${unsent.records}件は電波が戻ったら自動で送信します` : '圏外です。未送信の変更は電波が戻ったら自動で送信します',
+    });
   }
   if (stale) {
     items.push({ tone: 'warn', text: `${warnDays}日以上送信されていない記録があります。電波のある場所でアプリを開いてください` });

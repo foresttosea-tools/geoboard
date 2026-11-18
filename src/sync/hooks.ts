@@ -4,7 +4,7 @@ import { db } from '../db';
 import { prefs } from '../lib/prefs';
 import type { Profile } from '../types';
 import { getProvider } from './config';
-import { countUnsent, startAutoSync, syncStore } from './engine';
+import { countUnsent, startAutoSync, syncStore, unsentRecordIds } from './engine';
 import type { AuthSession } from './provider';
 
 /** ログイン状態。undefined：確認中 / null：未ログイン */
@@ -64,4 +64,9 @@ export function useOnline() {
     };
   }, []);
   return online;
+}
+
+/** 未送信の作業記録のID（追加写真だけが未送信の記録も含む） */
+export function useUnsentRecordIds() {
+  return useLiveQuery(unsentRecordIds, [], new Set<string>());
 }

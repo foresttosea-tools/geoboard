@@ -425,7 +425,34 @@ export function resetSyncState() {
 }
 
 /** 未送信・送信失敗の件数（作業記録・追加写真・顧客・台帳・作成した黒板の合計） */
-export async function countUnsent(): Promise<{ pending: number; failed: number }> {
+/**
+ * 未送信の作業記録のID（記録そのもの、または追加写真が未送信のもの。削除済みは除く）。
+ * 画面に出す「未送信◯件」はこの件数にそろえる
+ */
+export async function unsentRecordIds(): Promise<Set<string>> {
+  const ids = new Set<string>();
+  const recs = await db.records.where('syncStatus').anyOf('pending', 'failed').toArray();
+  recs.forEach((r) => !r.deletedAt && ids.add(r.id));
+  const extras = await db.extras.where('syncStatus').anyOf('pending', 'failed').toArray();
+  const parents = await db.records.bulkGet([...new Set(extras.map((x) => x.recordId))]);
+  parents.forEach((r) => r && !r.deletedAt && ids.add(r.id));
+  return ids;
+}
+
+/**
+ * pending / failed：送信待ちの行数（顧客・台帳・記録・追加写真・テンプレートの合計）。
+ * records：そのうち作業記録の件数（unsentRecordIds）
+ */
+export interface UnsentCounts {
+  pending: number;
+  failed: number;
+  /** 未送信の作業記録の件数 */
+  records: number;
+  /** 作業記録以外（顧客・台帳・テンプレートなど）の未送信があるか */
+  others: boolean;
+}
+
+export async function countUnsent(): Promise<UnsentCounts> {
   const tables = [db.customers, db.ledgers, db.records, db.extras, db.templates] as AnyTable<Syncable>[];
   let pending = 0;
   let failed = 0;
@@ -433,7 +460,20 @@ export async function countUnsent(): Promise<{ pending: number; failed: number }
     pending += await t.where('syncStatus').equals('pending').count();
     failed += await t.where('syncStatus').equals('failed').count();
   }
-  return { pending, failed };
+  let others = false;
+  for (const t of [db.customers, db.ledgers, db.templates] as AnyTable<Syncable>[]) {
+    if ((await t.where('syncStatus').anyOf('pending', 'failed').count()) > 0) others = true;
+  }
+  const records = (await unsentRecordIds()).size;
+  // 削除済みの記録の削除がまだ送れていないだけ、なども「その他の変更」とする
+  if (pending + failed > 0 && records === 0) others = true;
+  return { pending, failed, records, others };
+}
+
+/** 画面に出す未送信の説明（例：「記録2件と、顧客・台帳などの変更」） */
+export function describeUnsent(c: UnsentCounts): string {
+  if (c.records > 0) return `記録${c.records}件${c.others ? 'と、顧客・台帳などの変更' : ''}`;
+  return '顧客・台帳などの変更';
 }
 
 /**
@@ -460,13 +500,13 @@ async function waitIdle(timeoutMs = 60_000) {
 /**
  * 未送信・送信失敗のデータをすべて送り直し、残った件数と理由を返す（端末のデータを取り直す前などに使う）
  */
-export async function sendAllPending(): Promise<{ pending: number; failed: number; reasons: string[] }> {
+export async function sendAllPending(): Promise<UnsentCounts & { reasons: string[] }> {
   await waitIdle();
   await retryFailed();
   // 同期が予約・実行中なら、それも終わるのを待つ
   await sleep(300);
   await waitIdle();
-  const { pending, failed } = await countUnsent();
+  const counts = await countUnsent();
   const reasons = new Set<string>();
   const tables = [db.customers, db.ledgers, db.records, db.extras, db.templates] as AnyTable<Syncable & { syncError?: string }>[];
   for (const t of tables) {
@@ -474,5 +514,5 @@ export async function sendAllPending(): Promise<{ pending: number; failed: numbe
     rows.forEach((r) => r.syncError && reasons.add(/foreign key/i.test(r.syncError) ? '属する顧客・台帳がサーバーにありません' : r.syncError));
   }
   if (state.offline) reasons.add('圏外のため送信できませんでした');
-  return { pending, failed, reasons: [...reasons].slice(0, 3) };
+  return { ...counts, reasons: [...reasons].slice(0, 3) };
 }

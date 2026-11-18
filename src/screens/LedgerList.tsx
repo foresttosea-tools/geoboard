@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useUnsentRecordIds } from '../sync/hooks';
 import { useMemo, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { SyncBar } from '../components/SyncBar';
@@ -29,16 +30,17 @@ export function LedgerList({ customerId, onBack, onOpen, onCreate }: Props) {
     [ledgers],
   );
 
+  const unsentIds = useUnsentRecordIds();
   const counts = useMemo(() => {
     const m = new Map<string, { total: number; pending: number }>();
     for (const r of records ?? []) {
       const c = m.get(r.ledgerId) ?? { total: 0, pending: 0 };
       c.total++;
-      if (r.syncStatus !== 'synced') c.pending++;
+      if (unsentIds.has(r.id)) c.pending++;
       m.set(r.ledgerId, c);
     }
     return m;
-  }, [records]);
+  }, [records, unsentIds]);
 
   const list = useMemo(() => {
     const nq = normalizeForSearch(q);

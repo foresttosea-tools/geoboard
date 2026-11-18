@@ -6,7 +6,7 @@ import { db } from '../db';
 import { clearDiag, diagText } from '../lib/diag';
 import { prefs } from '../lib/prefs';
 import { DEFAULT_SERVER, getProvider, getServerConfig, setServerConfig } from '../sync/config';
-import { countUnsent, resetLocalData, resetSyncState, sendAllPending, syncNow } from '../sync/engine';
+import { countUnsent, describeUnsent, resetLocalData, resetSyncState, sendAllPending, syncNow } from '../sync/engine';
 import { useMyProfile, useOnline, useSyncState, useUnsent } from '../sync/hooks';
 import type { AuthSession } from '../sync/provider';
 import type { Profile } from '../types';
@@ -28,8 +28,9 @@ export function Settings({ session, onBack }: Props) {
   const unsent = useUnsent();
   const [persisted, setPersisted] = useState<boolean | null>(null);
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null);
-  const [logout, setLogout] = useState<number | null>(null);
-  const [reset, setReset] = useState<number | null>(null);
+  /** 未送信の説明（未送信がなければ空文字） */
+  const [logout, setLogout] = useState<string | null>(null);
+  const [reset, setReset] = useState<string | null>(null);
   const [resetting, setResetting] = useState<'sending' | 'clearing' | null>(null);
   const [resetNote, setResetNote] = useState<string | null>(null);
 
@@ -81,8 +82,8 @@ export function Settings({ session, onBack }: Props) {
           <button
             className="btn btn-wide"
             onClick={async () => {
-              const { pending, failed } = await countUnsent();
-              if (pending + failed > 0) setLogout(pending + failed);
+              const c = await countUnsent();
+              if (c.pending + c.failed > 0) setLogout(describeUnsent(c));
               else await doLogout();
             }}
           >
@@ -100,7 +101,11 @@ export function Settings({ session, onBack }: Props) {
             <div>
               <dt>未送信</dt>
               <dd>
-                {unsent?.pending ?? 0}件{unsent?.failed ? `（送信失敗 ${unsent.failed}件）` : ''}
+                {!unsent || unsent.pending + unsent.failed === 0
+                  ? 'なし'
+                  : unsent.records > 0
+                    ? `記録 ${unsent.records}件${unsent.failed ? '（送信失敗を含む）' : ''}`
+                    : '顧客や台帳などの変更あり'}
               </dd>
             </div>
             {sync.lastError && (
@@ -149,9 +154,9 @@ export function Settings({ session, onBack }: Props) {
             className="btn btn-wide"
             disabled={!online}
             onClick={async () => {
-              const { pending, failed } = await countUnsent();
+              const c = await countUnsent();
               setResetNote(null);
-              setReset(pending + failed);
+              setReset(c.pending + c.failed > 0 ? describeUnsent(c) : '');
             }}
           >
             {online ? 'この端末のデータを消して、サーバーから取り直す' : '圏外のため取り直せません'}
@@ -180,16 +185,16 @@ export function Settings({ session, onBack }: Props) {
 
       {reset != null && (
         <ConfirmDialog
-          title={reset > 0 ? '未送信のデータがあります' : '端末のデータを取り直しますか？'}
+          title={reset ? '未送信のデータがあります' : '端末のデータを取り直しますか？'}
           message={
             resetNote ??
-            (reset > 0
-              ? `送信されていないデータが${reset}件あります。消すと元に戻せません。先に送信してから取り直すことをおすすめします。`
+            (reset
+              ? `送信されていない${reset}があります。消すと元に戻せません。先に送信してから取り直すことをおすすめします。`
               : 'この端末の顧客・台帳・記録・写真を消して、サーバーの最新の内容を取り込み直します。サーバーのデータは変わりません。')
           }
           onDismiss={() => !resetting && setReset(null)}
           actions={
-            reset > 0
+            reset
               ? [
                   ...(resetNote
                     ? []
@@ -201,15 +206,14 @@ export function Settings({ session, onBack }: Props) {
                             if (resetting) return;
                             setResetting('sending');
                             const r = await sendAllPending();
-                            const left = r.pending + r.failed;
-                            if (left === 0) {
+                            if (r.pending + r.failed === 0) {
                               await doReset();
                               return;
                             }
                             setResetting(null);
-                            setReset(left);
+                            setReset(describeUnsent(r));
                             setResetNote(
-                              `${left}件のデータは送信できませんでした。${r.reasons.length ? `（理由：${r.reasons.join('／')}）` : ''}` +
+                              `${describeUnsent(r)}が送信できませんでした。${r.reasons.length ? `（理由：${r.reasons.join('／')}）` : ''}` +
                                 'サーバーで顧客や台帳を直接消した場合、それに属するデータは送れません。消してよければ「未送信も含めて消す」を押してください。',
                             );
                           },
@@ -229,7 +233,7 @@ export function Settings({ session, onBack }: Props) {
       {logout != null && (
         <ConfirmDialog
           title="未送信のデータがあります"
-          message={`送信されていないデータが${logout}件あります。ログアウトしても端末からは消えませんが、ログインし直すまで送信されません。`}
+          message={`送信されていない${logout}があります。ログアウトしても端末からは消えませんが、ログインし直すまで送信されません。`}
           onDismiss={() => setLogout(null)}
           actions={[
             {
@@ -238,9 +242,9 @@ export function Settings({ session, onBack }: Props) {
               onClick: async () => {
                 if (!online) return;
                 await syncNow();
-                const { pending, failed } = await countUnsent();
-                if (pending + failed === 0) await doLogout();
-                else setLogout(pending + failed);
+                const c = await countUnsent();
+                if (c.pending + c.failed === 0) await doLogout();
+                else setLogout(describeUnsent(c));
               },
             },
             { label: 'このままログアウト', variant: 'danger', onClick: doLogout },

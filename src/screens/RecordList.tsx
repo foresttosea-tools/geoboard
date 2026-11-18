@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { useUnsentRecordIds } from '../sync/hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { diag } from '../lib/diag';
 import { SLOT_PLACE, SLOT_WORK, SLOT_WORKER } from '../blackboard/model';
@@ -33,7 +34,8 @@ export function RecordList({ ledger, customerName, onBack, onEditLedger, onShoot
     () => [...(records ?? [])].sort((a, b) => (order === 'desc' ? b.shotAt.localeCompare(a.shotAt) : a.shotAt.localeCompare(b.shotAt))),
     [records, order],
   );
-  const pending = sorted.filter((r) => r.syncStatus !== 'synced').length;
+  const unsentIds = useUnsentRecordIds();
+  const pending = sorted.filter((r) => unsentIds.has(r.id)).length;
 
   return (
     <div className="screen">
@@ -109,7 +111,7 @@ export function RecordList({ ledger, customerName, onBack, onEditLedger, onShoot
                 <button className="grid-item" onClick={() => onOpen(r.id, sorted.map((x) => x.id))}>
                   <Thumb id={r.id} path={r.thumbPath} />
                   <span className="grid-date">{formatShotDate(r)}</span>
-                  {r.syncStatus !== 'synced' && <span className="grid-dot" aria-label="未送信" />}
+                  {unsentIds.has(r.id) && <span className="grid-dot" aria-label="未送信" />}
                 </button>
               </li>
             ))}

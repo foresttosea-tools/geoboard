@@ -12,14 +12,25 @@ export function formatShotDate(r: WorkRecord) {
 export function Marks({ r }: { r: WorkRecord }) {
   return (
     <div className="marks">
-      {r.syncStatus === 'pending' && <span className="badge badge-pending">未送信</span>}
-      {r.syncStatus === 'failed' && <span className="badge badge-error">送信失敗</span>}
+      <SyncMark r={r} />
       {r.shotDateNeedsCheck && <span className="badge badge-warn">日付要確認</span>}
       {r.source === 'import' && <span className="badge">取込画像</span>}
       {r.latitude == null && <span className="badge">位置なし</span>}
       <ExtraCount recordId={r.id} />
     </div>
   );
+}
+
+/** 記録そのもの、または追加写真の送信状態 */
+function SyncMark({ r }: { r: WorkRecord }) {
+  const extra = useLiveQuery(async () => {
+    const xs = await db.extras.where('recordId').equals(r.id).toArray();
+    return xs.some((x) => x.syncStatus === 'failed') ? 'failed' : xs.some((x) => x.syncStatus === 'pending') ? 'pending' : 'synced';
+  }, [r.id]);
+  const status = r.syncStatus === 'failed' || extra === 'failed' ? 'failed' : r.syncStatus === 'pending' || extra === 'pending' ? 'pending' : 'synced';
+  if (status === 'failed') return <span className="badge badge-error">送信失敗</span>;
+  if (status === 'pending') return <span className="badge badge-pending">未送信</span>;
+  return null;
 }
 
 function ExtraCount({ recordId }: { recordId: string }) {
