@@ -168,9 +168,7 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
               <Icon name="edit" size={18} />
               黒板を修正（写真を作り直す）
             </button>
-          ) : (
-            <p className="hint">「黒板ありのみ」で保存したため、黒板の写真は修正できません。訂正はメモに書いてください</p>
-          )
+          ) : null
         )}
 
         <div className="card notes-card">
@@ -251,11 +249,7 @@ function ShotDateCheck({ record }: { record: WorkRecord }) {
       <p className="date-check-title">撮影日を確認してください</p>
       <p className="date-check-text">
         写真から撮影日を読み取れなかったため、仮の日付が入っています。
-        {canFixBoard(record)
-          ? '日付を変えると、黒板の撮影日も直して写真を作り直します。'
-          : record.board
-            ? '「黒板ありのみ」で保存したため、写真の黒板の日付は直せません。記録の撮影日だけを直します。'
-            : ''}
+        {canFixBoard(record) ? '日付を変えると、写真の黒板の撮影日も直して写真を作り直します。' : ''}
       </p>
       <div className="inline-form">
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="撮影日" />

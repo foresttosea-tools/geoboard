@@ -4,20 +4,26 @@ import type { BoardContent, WorkRecord } from '../types';
 import { loadImageBlob } from '../sync/images';
 import { canvasToJpeg, composeWithBoard, loadImageToCanvas, makeThumbnail } from './image';
 
-/** 黒板の内容を修正できるか（要件6.5：「両方」で保存した記録のみ写真を作り直せる） */
+/** 黒板の内容を修正できるか（要件6.5：黒板付きで保存した記録は写真を作り直せる） */
 export function canFixBoard(r: WorkRecord): boolean {
-  return r.mode === 'both' && r.board != null && r.boardLayout != null;
+  return (r.mode === 'both' || r.mode === 'with_board') && r.board != null && r.boardLayout != null;
 }
 
 /**
- * 黒板を修正して写真を作り直す。原本に新しい黒板を合成し、合成画像とサムネイルを差し替える
+ * 黒板を修正して写真を作り直し、合成画像とサムネイルを差し替える。
+ * - 「両方」：黒板なしの原本に、新しい黒板を重ねる
+ * - 「黒板ありのみ」：今の黒板付きの写真に、同じ位置・大きさで新しい黒板を重ねる。
+ *   黒板は透けないので、古い黒板は完全に隠れる（黒板の下は元々写っていないため失うものはない）
  */
 export async function fixRecordBoard(record: WorkRecord, board: BoardContent) {
   if (!canFixBoard(record) || !record.boardLayout) throw new Error('この記録は黒板を修正できません');
-  // 送信済みの記録は端末に原本がないので、サーバーから取り寄せる
-  const original = await loadImageBlob(`${record.id}:original`, record.originalPath).catch(() => null);
-  if (!original) throw new Error('原本の写真を取得できません。電波のある場所で試してください');
-  const photo = await loadImageToCanvas(original);
+  // 送信済みの記録は端末に大きい画像がないので、サーバーから取り寄せる
+  const base =
+    record.mode === 'both'
+      ? await loadImageBlob(`${record.id}:original`, record.originalPath).catch(() => null)
+      : await loadImageBlob(`${record.id}:composite`, record.compositePath).catch(() => null);
+  if (!base) throw new Error('写真を取得できません。電波のある場所で試してください');
+  const photo = await loadImageToCanvas(base);
   const composite = composeWithBoard(photo, board, record.boardLayout);
   const compositeBlob = await canvasToJpeg(composite);
   const thumbBlob = await makeThumbnail(composite);

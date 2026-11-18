@@ -55,7 +55,7 @@ export function BoardFix({ recordId, onBack }: Props) {
         <div ref={wrapRef} className="board-wrap">
           {board && width > 0 && <BoardCanvas board={board} width={width} onSlotTap={setEditing} className="board-canvas" />}
         </div>
-        <p className="hint">項目をタップして修正してください。保存すると、黒板なしの原本に修正後の黒板を重ねて写真を作り直します</p>
+        <p className="hint">項目をタップして修正してください。保存すると、修正後の黒板を同じ位置・大きさで写真に重ねて、写真を作り直します</p>
         {error && <p className="hint danger">{error}</p>}
       </main>
       <footer className="bottombar">
