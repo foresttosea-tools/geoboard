@@ -11,6 +11,8 @@ export interface AuthSession {
 
 /** サーバー上のテーブル名 */
 export type RemoteTable = 'customers' | 'ledgers' | 'records' | 'record_extras' | 'blackboard_templates' | 'profiles';
+/** 差分取得できるテーブル */
+export type PullTable = Exclude<RemoteTable, 'profiles'> | 'notifications' | 'duplicate_dismissals';
 
 /** サーバーの行（snake_case のまま扱う） */
 export type RemoteRow = Record<string, unknown>;
@@ -39,7 +41,18 @@ export interface DataProvider {
   /** 行をまとめて登録・更新する（IDが同じなら更新） */
   upsert(table: Exclude<RemoteTable, 'profiles'>, rows: RemoteRow[]): Promise<void>;
   /** server_updated_at が since より新しい行を古い順に取得する */
-  pull(table: Exclude<RemoteTable, 'profiles'>, since: string | null, limit: number): Promise<RemoteRow[]>;
+  pull(table: PullTable, since: string | null, limit: number): Promise<RemoteRow[]>;
+
+  /** 自分宛ての通知を既読にする */
+  markNotificationsRead(ids: string[], at: string): Promise<void>;
+  /** 変更履歴・操作ログを新しい順に取得する（targetIds を指定するとその対象だけ。before より前） */
+  fetchChangeLogs(opts: { targetIds?: string[]; limit: number; before?: string | null }): Promise<RemoteRow[]>;
+  /** 台帳のペアを「重複ではない」にする（管理者） */
+  dismissDuplicate(ledgerA: string, ledgerB: string): Promise<void>;
+  /** 台帳を統合する（管理者）。fields は統合先に残す値（サーバーの列名） */
+  mergeLedgers(targetId: string, sourceId: string, fields: Record<string, unknown>): Promise<void>;
+  /** 台帳の統合を取り消す（管理者） */
+  unmergeLedger(sourceId: string): Promise<void>;
 
   /** 画像を保存し、サーバーに正しく届いたか（サイズ一致）を確認する */
   uploadFile(path: string, blob: Blob): Promise<void>;

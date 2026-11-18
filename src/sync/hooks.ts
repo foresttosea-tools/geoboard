@@ -70,3 +70,14 @@ export function useOnline() {
 export function useUnsentRecordIds() {
   return useLiveQuery(unsentRecordIds, [], new Set<string>());
 }
+
+/** ユーザーIDから表示名を引く */
+export function useUserName() {
+  const profiles = useLiveQuery(() => db.profiles.toArray(), []);
+  return (id: string | null) => (id ? (profiles?.find((p) => p.userId === id)?.displayName ?? '（不明なユーザー）') : '（システム）');
+}
+
+/** 未読の通知の件数（通知アイコンのバッジ） */
+export function useUnreadCount() {
+  return useLiveQuery(() => db.notifications.filter((x) => !x.readAt).count(), []) ?? 0;
+}

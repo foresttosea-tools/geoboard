@@ -1,7 +1,7 @@
 {
   "name": "geoboard",
   "private": true,
-  "version": "0.5.3",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "test:e2e": "npm run build && node tests/e2e/run.cjs",
-    "test:e2e:admin": "npm run build && node tests/e2e/run.cjs --admin"
+    "test:e2e:admin": "npm run build && node tests/e2e/run.cjs --admin",
+    "test:e2e:step4": "npm run build && node tests/e2e/run.cjs --step4"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.119.0",

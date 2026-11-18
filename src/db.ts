@@ -1,6 +1,6 @@
 import Dexie, { type EntityTable } from 'dexie';
 import { LEGACY_HANDOVER_SLOT, migrateLegacyBoard } from './blackboard/model';
-import type { BoardTemplate, Customer, ExtraPhoto, Ledger, Profile, StoredImage, WorkRecord } from './types';
+import type { AppNotification, BoardTemplate, Customer, DuplicateDismissal, ExtraPhoto, Ledger, Profile, StoredImage, WorkRecord } from './types';
 
 export const db = new Dexie('geoboard') as Dexie & {
   customers: EntityTable<Customer, 'id'>;
@@ -11,6 +11,8 @@ export const db = new Dexie('geoboard') as Dexie & {
   extras: EntityTable<ExtraPhoto, 'id'>;
   profiles: EntityTable<Profile, 'userId'>;
   meta: EntityTable<{ key: string; value: string }, 'key'>;
+  notifications: EntityTable<AppNotification, 'id'>;
+  dismissals: EntityTable<DuplicateDismissal, 'key'>;
 };
 
 db.version(1).stores({
@@ -95,6 +97,32 @@ db.version(5)
     });
   });
 
+// v6：ステップ4。通知・重複ではないペアを追加。送信済みの台帳・記録に「サーバーにある」印を付ける（項目単位のマージ用）
+db.version(6)
+  .stores({
+    notifications: 'id, createdAt, readAt',
+    dismissals: 'key',
+  })
+  .upgrade(async (tx) => {
+    for (const name of ['ledgers', 'records']) {
+      await tx.table(name).toCollection().modify((r) => {
+        if (r.syncStatus === 'synced') r.remote = true;
+      });
+    }
+  });
+
+/**
+ * 項目単位のマージ（要件7.3）で、編集を記録する項目。
+ * サーバーにある行をこれらの項目で編集すると、編集前の値を fieldBase に残す（送信時にサーバーで衝突を判定する）
+ */
+export const MERGE_FIELDS: Record<string, string[]> = {
+  ledgers: ['name', 'startDate', 'endDate', 'manager', 'note', 'lastBoard', 'customerId', 'deletedAt'],
+  records: [
+    'mode', 'board', 'boardLayout', 'memo', 'handover', 'handoverInReport', 'shotAt', 'shotDateNeedsCheck',
+    'latitude', 'longitude', 'locationAccuracy', 'imageWidth', 'imageHeight', 'deletedAt',
+  ],
+};
+
 /**
  * 端末でデータを変更したら、自動で「未送信」にして同期を予約する。
  * 同期処理が書き込むときは syncStatus を明示するので、その場合は何もしない
@@ -106,6 +134,8 @@ export function onLocalChange(fn: ChangeListener) {
   return () => changeListeners.delete(fn);
 }
 const notifyChange = () => changeListeners.forEach((fn) => fn());
+/** 同期を予約する（同期対象の表以外を変更したとき） */
+export const requestSync = () => notifyChange();
 
 /** 同期処理による書き込みの目印。この印があるトランザクションでは「未送信」にしない */
 const SYNC_TX = '__geoboardSync';
@@ -125,10 +155,24 @@ for (const table of [db.customers, db.ledgers, db.records, db.extras, db.templat
     if (!obj.syncStatus) obj.syncStatus = 'pending';
     if (obj.syncStatus === 'pending') queueMicrotask(notifyChange);
   });
-  table.hook('updating', (mods: object, _pk, _obj, tx) => {
+  const fields = MERGE_FIELDS[table.name];
+  table.hook('updating', (mods: object, _pk, obj: object, tx) => {
     if (isSyncTx(tx) || 'syncStatus' in mods) return undefined;
     queueMicrotask(notifyChange);
-    return { syncStatus: 'pending', syncError: undefined };
+    const extra: Record<string, unknown> = { syncStatus: 'pending', syncError: undefined };
+    const old = obj as Record<string, unknown> & { remote?: boolean; fieldBase?: Record<string, unknown> };
+    if (fields && old.remote) {
+      const base = { ...(old.fieldBase ?? {}) };
+      let changed = false;
+      for (const k of Object.keys(mods)) {
+        if (fields.includes(k) && !(k in base)) {
+          base[k] = old[k] ?? null;
+          changed = true;
+        }
+      }
+      if (changed) extra.fieldBase = base;
+    }
+    return extra;
   });
 }
 

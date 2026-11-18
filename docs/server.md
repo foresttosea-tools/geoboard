@@ -10,6 +10,14 @@
    - SQLを実行した後に最初に作ったアカウントが、自動で管理者になる
 5. アプリの接続先（URLと公開用キー）を `src/sync/config.ts` の初期値、または設定画面（管理者）で指定する
 
+## ステップ4の追加（2026-11-19）
+
+すでに初期スキーマを実行済みのプロジェクトでは、SQL Editor で `supabase/migrations/20261119000000_step4.sql` の内容をまるごと1回実行する。
+
+- 追加されるもの：項目単位のマージと衝突の記録、変更履歴・操作ログ（change_logs）、通知（notifications）、重複ではないペア（duplicate_dismissals）、台帳の統合・取り消し（merge_ledgers / unmerge_ledger）
+- 似た名前の判定に `fuzzystrmatch` 拡張（Supabase標準）を使う
+- 実行前の端末（古い版のアプリ）から送られたデータも、これまでどおり行ごと受け付ける
+
 ## アカウントの運用
 
 - アカウントの発行：Supabaseの管理画面（上記4）。表示名は各自がアプリの設定画面で変更できる
@@ -26,5 +34,5 @@
 
 ## テストデータを消すとき
 
-1. Supabaseの SQL Editor で顧客・台帳・記録などの表を空にし、Storage の `photos` の中身を削除する
+1. Supabaseの SQL Editor で顧客・台帳・記録などの表を空にし、Storage の `photos` の中身を削除する（ステップ4以降は change_logs・notifications・duplicate_dismissals も空にする。外部キーがあるため duplicate_dismissals → records の子（record_extras）→ records → ledgers → customers の順）
 2. 管理画面での直接の削除はスマホに伝わらないため、全員のスマホでアプリの設定 →「この端末のデータを消して、サーバーから取り直す」を押す

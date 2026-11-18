@@ -22,6 +22,7 @@ interface Props {
   onNavigate: (id: string) => void;
   onBack: () => void;
   onFixBoard: (id: string) => void;
+  onHistory: (id: string) => void;
 }
 
 const MODE_LABEL = { with_board: '黒板ありのみ', without_board: '黒板なしのみ', both: '黒板あり＋なし（両方）' } as const;
@@ -30,7 +31,7 @@ const MODE_LABEL = { with_board: '黒板ありのみ', without_board: '黒板な
 type Notes = Handover & { memo: string };
 const savedNotes = (r: WorkRecord): Notes => ({ text: r.handover ?? '', inReport: r.handoverInReport ?? false, memo: r.memo ?? '' });
 
-export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props) {
+export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard, onHistory }: Props) {
   const record = useLiveQuery(() => db.records.get(id), [id]);
   const [showOriginal, setShowOriginal] = useState(false);
   const me = useMyProfile();
@@ -48,7 +49,7 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
   const [draft, setDraft] = useState<(Notes & { id: string }) | null>(null);
   const [justSaved, setJustSaved] = useState(false);
   // 未保存のまま移動しようとしたときの移動先
-  const [pending, setPending] = useState<{ kind: 'back' } | { kind: 'fix' } | { kind: 'go'; id: string; dir: 1 | -1 } | null>(null);
+  const [pending, setPending] = useState<{ kind: 'back' } | { kind: 'fix' } | { kind: 'history' } | { kind: 'go'; id: string; dir: 1 | -1 } | null>(null);
   const [slide, setSlide] = useState<'next' | 'prev' | null>(null);
 
   const index = ids.indexOf(id);
@@ -77,6 +78,8 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
       onBack();
     } else if (target.kind === 'fix') {
       onFixBoard(id);
+    } else if (target.kind === 'history') {
+      onHistory(id);
     } else {
       setSlide(target.dir === 1 ? 'next' : 'prev');
       onNavigate(target.id);
@@ -202,6 +205,10 @@ export function RecordDetail({ id, ids, onNavigate, onBack, onFixBoard }: Props)
             {justSaved && !dirty ? '保存しました' : 'メモと引継ぎ事項を保存'}
           </button>
         </div>
+        <button className="btn btn-wide" onClick={() => requestMove({ kind: 'history' })}>
+          <Icon name="history" size={18} />
+          変更履歴
+        </button>
       </main>
 
       {ids.length > 1 && (

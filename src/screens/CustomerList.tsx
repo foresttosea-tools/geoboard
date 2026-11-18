@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
+import { NotificationBell } from '../components/NotificationBell';
 import { Icon } from '../components/Icon';
 import { SyncBar } from '../components/SyncBar';
 import { useOnline } from '../sync/hooks';
@@ -11,17 +12,18 @@ import type { Customer } from '../types';
 interface Props {
   onOpen: (customerId: string) => void;
   onSettings: () => void;
+  onNotifications: () => void;
 }
 
 /** S02 顧客一覧 */
-export function CustomerList({ onOpen, onSettings }: Props) {
+export function CustomerList({ onOpen, onSettings, onNotifications }: Props) {
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<Customer | 'new' | null>(null);
   const online = useOnline();
   const me = useMyProfile();
   const isAdmin = me?.role === 'admin' && !me.disabled;
   const customers = useLiveQuery(() => db.customers.filter((c) => !c.deletedAt).toArray(), []);
-  const ledgers = useLiveQuery(() => db.ledgers.filter((l) => !l.deletedAt).toArray(), []);
+  const ledgers = useLiveQuery(() => db.ledgers.filter((l) => !l.deletedAt && !l.mergedInto).toArray(), []);
 
   const stats = useMemo(() => {
     const m = new Map<string, { count: number; latest: string }>();
@@ -55,6 +57,7 @@ export function CustomerList({ onOpen, onSettings }: Props) {
           <h1>顧客一覧</h1>
         </div>
         <div className="appbar-actions">
+          <NotificationBell onClick={onNotifications} />
           <button className="icon-btn" aria-label="設定" onClick={onSettings}>
             <Icon name="settings" />
           </button>

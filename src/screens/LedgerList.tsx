@@ -21,7 +21,7 @@ export function LedgerList({ customerId, onBack, onOpen, onCreate }: Props) {
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<LedgerSort>(prefs.getLedgerSort());
   const customer = useLiveQuery(() => db.customers.get(customerId), [customerId]);
-  const ledgers = useLiveQuery(() => db.ledgers.where('customerId').equals(customerId).filter((l) => !l.deletedAt).toArray(), [customerId]);
+  const ledgers = useLiveQuery(() => db.ledgers.where('customerId').equals(customerId).filter((l) => !l.deletedAt && !l.mergedInto).toArray(), [customerId]);
   const records = useLiveQuery(
     async () => {
       const ids = (ledgers ?? []).map((l) => l.id);

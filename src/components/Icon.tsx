@@ -14,6 +14,10 @@ const PATHS = {
   plus: 'M12 5v14M5 12h14',
   map: 'M12 22s-7-6.2-7-12a7 7 0 0114 0c0 5.8-7 12-7 12zM12 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z',
   info: 'M12 22a10 10 0 100-20 10 10 0 000 20zM12 16v-4M12 8h.01',
+  bell: 'M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 01-3.46 0',
+  history: 'M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8M3 3v5h5M12 7v5l4 2',
+  merge: 'M6 3v6a6 6 0 006 6h6M18 21V9M6 21V15M15 12l3 3-3 3',
+  log: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M8 13h8M8 17h8M8 9h2',
 } as const;
 
 export type IconName = keyof typeof PATHS;

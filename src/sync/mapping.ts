@@ -1,4 +1,4 @@
-import type { BoardTemplate, Customer, ExtraPhoto, Ledger, Profile, WorkRecord } from '../types';
+import type { AppNotification, BoardTemplate, ChangeLog, Customer, DuplicateDismissal, ExtraPhoto, Ledger, Profile, WorkRecord } from '../types';
 import type { RemoteProfile, RemoteRow } from './provider';
 
 /**
@@ -9,6 +9,24 @@ import type { RemoteProfile, RemoteRow } from './provider';
 const dateOrNull = (d: string) => (d ? d : null);
 const str = (v: unknown) => (v == null ? '' : String(v));
 const strOrNull = (v: unknown) => (v == null ? null : String(v));
+export const toSnake = (k: string) => k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+export const toCamel = (k: string) => k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
+
+/**
+ * 端末で編集した項目の「編集を始めたときの値」をサーバーの列名・形式にする（sync_base）。
+ * サーバーにまだない行（新規）は null（行ごと登録する）
+ */
+function syncBase<T extends { remote?: boolean; fieldBase?: Record<string, unknown> }>(r: T, toRow: (x: T) => RemoteRow): Record<string, unknown> | null {
+  if (!r.remote) return null;
+  const base = r.fieldBase ?? {};
+  const asRow = toRow({ ...r, ...base, remote: false });
+  const out: Record<string, unknown> = {};
+  for (const k of Object.keys(base)) {
+    const s = toSnake(k);
+    if (s in asRow) out[s] = asRow[s];
+  }
+  return out;
+}
 
 export const customerToRow = (c: Customer): RemoteRow => ({
   id: c.id,
@@ -45,6 +63,7 @@ export const ledgerToRow = (l: Ledger): RemoteRow => ({
   created_at: l.createdAt,
   updated_at: l.updatedAt,
   deleted_at: l.deletedAt,
+  sync_base: syncBase(l, ledgerToRow),
 });
 
 export const ledgerFromRow = (r: RemoteRow): Ledger => ({
@@ -56,6 +75,8 @@ export const ledgerFromRow = (r: RemoteRow): Ledger => ({
   manager: str(r.manager),
   note: str(r.note),
   lastBoard: (r.last_board as Ledger['lastBoard']) ?? null,
+  mergedInto: strOrNull(r.merged_into),
+  remote: true,
   createdBy: str(r.created_by),
   createdAt: str(r.created_at),
   updatedAt: str(r.updated_at),
@@ -86,6 +107,7 @@ export const recordToRow = (r: WorkRecord): RemoteRow => ({
   created_at: r.createdAt,
   updated_at: r.updatedAt,
   deleted_at: r.deletedAt,
+  sync_base: syncBase(r, recordToRow),
 });
 
 export const recordFromRow = (r: RemoteRow): WorkRecord => ({
@@ -109,6 +131,7 @@ export const recordFromRow = (r: RemoteRow): WorkRecord => ({
   originalPath: strOrNull(r.original_path),
   thumbPath: strOrNull(r.thumb_path),
   syncStatus: 'synced',
+  remote: true,
   createdBy: str(r.created_by),
   createdAt: str(r.created_at),
   updatedAt: str(r.updated_at),
@@ -171,4 +194,31 @@ export const profileFromRemote = (p: RemoteProfile): Profile => ({
   role: p.role,
   disabled: p.disabled,
   updatedAt: p.updated_at,
+});
+
+export const notificationFromRow = (r: RemoteRow): AppNotification => ({
+  id: str(r.id),
+  type: r.type as AppNotification['type'],
+  payload: (r.payload as Record<string, unknown>) ?? {},
+  readAt: strOrNull(r.read_at),
+  createdAt: str(r.created_at),
+});
+
+export const dismissalFromRow = (r: RemoteRow): DuplicateDismissal => ({
+  key: `${str(r.ledger_a)}:${str(r.ledger_b)}`,
+  ledgerA: str(r.ledger_a),
+  ledgerB: str(r.ledger_b),
+});
+
+export const changeLogFromRow = (r: RemoteRow): ChangeLog => ({
+  id: str(r.id),
+  targetTable: str(r.target_table),
+  targetId: str(r.target_id),
+  action: r.action as ChangeLog['action'],
+  field: strOrNull(r.field),
+  before: r.before ?? null,
+  after: r.after ?? null,
+  userId: strOrNull(r.user_id),
+  overwrittenUserId: strOrNull(r.overwritten_user_id),
+  createdAt: str(r.created_at),
 });

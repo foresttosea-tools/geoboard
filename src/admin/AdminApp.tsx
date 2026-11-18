@@ -6,13 +6,16 @@ import { db } from '../db';
 import { deleteCustomer, deleteLedger, formatTerm, normalizeForSearch, renameCustomer } from '../lib/repo';
 import { getProvider } from '../sync/config';
 import { resetSyncState } from '../sync/engine';
-import { useMyProfile, useOnline } from '../sync/hooks';
+import { useMyProfile, useOnline, useUnreadCount } from '../sync/hooks';
 import type { AuthSession } from '../sync/provider';
 import { UserAdmin } from '../screens/Settings';
 import { DeletedPane, ProvisionalPane } from './AdminPanes';
+import { DuplicatesPane, LogPane, NotificationsPane } from './Step4Panes';
+import { findDuplicatePairs } from '../lib/duplicates';
+import type { AppNotification } from '../types';
 import { LedgerDetail } from './LedgerDetail';
 
-type View = 'ledgers' | 'provisional' | 'deleted' | 'users';
+type View = 'ledgers' | 'notifications' | 'duplicates' | 'provisional' | 'deleted' | 'logs' | 'users';
 
 /** PC管理画面（#admin。要件8） */
 export function AdminApp({ session }: { session: AuthSession }) {
@@ -23,11 +26,47 @@ export function AdminApp({ session }: { session: AuthSession }) {
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [ledgerId, setLedgerId] = useState<string | null>(null);
   const provisionalCount = useLiveQuery(() => db.customers.filter((c) => c.isProvisional && !c.deletedAt).count(), []);
+  const unread = useUnreadCount();
+  const duplicateCount = useLiveQuery(async () => findDuplicatePairs(await db.ledgers.toArray(), await db.dismissals.toArray()).length, []);
+  const [recordId, setRecordId] = useState<string | null>(null);
+  const [pair, setPair] = useState<[string, string] | null>(null);
+
+  // 通知から該当する画面を開く
+  const openNotification = async (n: AppNotification) => {
+    if (n.type === 'duplicate_candidate') {
+      setPair([String(n.payload.ledger_a), String(n.payload.ledger_b)]);
+      setView('duplicates');
+      return;
+    }
+    if (n.type === 'provisional_customer') {
+      setView('provisional');
+      return;
+    }
+    let ledger = String(n.payload.ledger_id ?? '');
+    let rec: string | null = null;
+    if (n.payload.table === 'records') {
+      const r = await db.records.get(String(n.payload.target_id));
+      if (r) ledger = r.ledgerId;
+      rec = r ? r.id : null;
+    }
+    const l = await db.ledgers.get(ledger);
+    if (!l || l.deletedAt) {
+      alert('対象の台帳は削除されています');
+      return;
+    }
+    setCustomerId(l.customerId);
+    setLedgerId(l.mergedInto ?? l.id);
+    setRecordId(rec);
+    setView('ledgers');
+  };
 
   const nav: { id: View; label: string; icon: Parameters<typeof Icon>[0]['name']; admin?: boolean; badge?: number }[] = [
     { id: 'ledgers', label: '顧客・台帳', icon: 'list' },
+    { id: 'notifications', label: '通知', icon: 'bell', badge: unread || undefined },
+    { id: 'duplicates', label: '重複候補・統合', icon: 'merge', admin: true, badge: duplicateCount || undefined },
     { id: 'provisional', label: '仮顧客の処理', icon: 'info', admin: true, badge: provisionalCount || undefined },
     { id: 'deleted', label: '削除済みデータ', icon: 'trash', admin: true },
+    { id: 'logs', label: '操作ログ', icon: 'log', admin: true },
     { id: 'users', label: 'ユーザー管理', icon: 'settings', admin: true },
   ];
 
@@ -51,6 +90,8 @@ export function AdminApp({ session }: { session: AuthSession }) {
                 onClick={() => {
                   setView(n.id);
                   if (n.id === 'ledgers') setLedgerId(null);
+                  if (n.id === 'duplicates') setPair(null);
+                  setRecordId(null);
                 }}
               >
                 <Icon name={n.icon} size={18} />
@@ -83,7 +124,7 @@ export function AdminApp({ session }: { session: AuthSession }) {
         <SyncBar />
         {view === 'ledgers' &&
           (ledgerId ? (
-            <LedgerDetail ledgerId={ledgerId} isAdmin={isAdmin} onBack={() => setLedgerId(null)} />
+            <LedgerDetail key={`${ledgerId}:${recordId ?? ''}`} ledgerId={ledgerId} isAdmin={isAdmin} initialRecordId={recordId} onBack={() => setLedgerId(null)} />
           ) : (
             <CustomersLedgers
               isAdmin={isAdmin}
@@ -92,6 +133,9 @@ export function AdminApp({ session }: { session: AuthSession }) {
               onOpenLedger={setLedgerId}
             />
           ))}
+        {view === 'notifications' && <NotificationsPane onOpen={openNotification} />}
+        {view === 'duplicates' && isAdmin && <DuplicatesPane key={pair?.join(':') ?? 'list'} initialPair={pair} />}
+        {view === 'logs' && isAdmin && <LogPane />}
         {view === 'provisional' && isAdmin && <ProvisionalPane />}
         {view === 'deleted' && isAdmin && <DeletedPane />}
         {view === 'users' && isAdmin && (
@@ -117,8 +161,11 @@ function CustomersLedgers({ isAdmin, customerId, onSelectCustomer, onOpenLedger 
   const [q, setQ] = useState('');
   const [lq, setLq] = useState('');
   const customers = useLiveQuery(() => db.customers.filter((c) => !c.deletedAt).toArray(), []);
-  const ledgers = useLiveQuery(() => db.ledgers.filter((l) => !l.deletedAt).toArray(), []);
+  const ledgers = useLiveQuery(() => db.ledgers.filter((l) => !l.deletedAt && !l.mergedInto).toArray(), []);
   const records = useLiveQuery(() => db.records.filter((r) => !r.deletedAt).toArray(), []);
+  const dismissals = useLiveQuery(() => db.dismissals.toArray(), []);
+  // 重複候補になっている台帳（要件6.2・画面P02のバッジ）
+  const duplicateIds = useMemo(() => new Set(findDuplicatePairs(ledgers ?? [], dismissals ?? []).flat().map((l) => l.id)), [ledgers, dismissals]);
 
   const ledgerCount = useMemo(() => {
     const m = new Map<string, number>();
@@ -226,7 +273,10 @@ function CustomersLedgers({ isAdmin, customerId, onSelectCustomer, onOpenLedger 
                   const c = recordCount.get(l.id);
                   return (
                     <tr key={l.id} onClick={() => onOpenLedger(l.id)} className="clickable">
-                      <td className="strong">{l.name}</td>
+                      <td className="strong">
+                        {l.name}
+                        {duplicateIds.has(l.id) && <span className="badge badge-warn dup-badge">重複候補</span>}
+                      </td>
                       <td>{formatTerm(l)}</td>
                       <td>{l.manager || '—'}</td>
                       <td className="num">

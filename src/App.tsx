@@ -23,6 +23,8 @@ import { LedgerList } from './screens/LedgerList';
 import { RecordDetail } from './screens/RecordDetail';
 import { RecordList } from './screens/RecordList';
 import { Settings } from './screens/Settings';
+import { ChangeHistory } from './screens/ChangeHistory';
+import { Notifications } from './screens/Notifications';
 import { TemplateList } from './screens/TemplateList';
 import type { AuthSession } from './sync/provider';
 import type { BoardContent, CaptureMode, Handover, Ledger } from './types';
@@ -42,7 +44,9 @@ type Screen =
   | { name: 'import' }
   | { name: 'detail'; id: string; ids: string[] }
   | { name: 'boardFix'; id: string; ids: string[] }
-  | { name: 'settings'; from: Screen };
+  | { name: 'settings'; from: Screen }
+  | { name: 'notifications'; from: Screen }
+  | { name: 'history'; targetId: string; title: string; from: Screen };
 
 /**
  * 施工者名を設定の値で上書きする（要件4.3：施工者名の初期値はログインユーザー名）。
@@ -118,6 +122,14 @@ function MainApp({ session }: { session: AuthSession }) {
     requestPersistentStorage();
   }, []);
 
+  // 開いていた台帳がPCで統合されたら、統合先の台帳に切り替える（要件6.2）
+  const mergedInto = ledger?.mergedInto ?? null;
+  useEffect(() => {
+    if (!mergedInto) return;
+    setLedgerId(mergedInto);
+    prefs.setLastLedger(mergedInto);
+  }, [mergedInto]);
+
   // 開いていた台帳が削除されていたら顧客一覧に戻す
   const ledgerMissing = ledger === null || ledger?.deletedAt != null;
   useEffect(() => {
@@ -135,11 +147,17 @@ function MainApp({ session }: { session: AuthSession }) {
   };
 
   // 台帳を扱う画面で、台帳がまだ読み込まれていない・見つからない場合
-  const needsLedger = !['customers', 'ledgers', 'ledgerNew', 'settings'].includes(screen.name);
+  const needsLedger = !['customers', 'ledgers', 'ledgerNew', 'settings', 'notifications', 'history'].includes(screen.name);
   if (needsLedger) {
     if (ledger === undefined || (ledger && customer === undefined)) return <div className="splash">GeoBoard</div>;
     if (ledgerMissing) {
-      return <CustomerList onOpen={(id) => setScreen({ name: 'ledgers', customerId: id })} onSettings={() => setScreen({ name: 'settings', from: { name: 'customers' } })} />;
+      return (
+        <CustomerList
+          onOpen={(id) => setScreen({ name: 'ledgers', customerId: id })}
+          onSettings={() => setScreen({ name: 'settings', from: { name: 'customers' } })}
+          onNotifications={() => setScreen({ name: 'notifications', from: { name: 'customers' } })}
+        />
+      );
     }
   }
   const customerName = customer?.name ?? '';
@@ -159,6 +177,7 @@ function MainApp({ session }: { session: AuthSession }) {
         <CustomerList
           onOpen={(id) => setScreen({ name: 'ledgers', customerId: id })}
           onSettings={() => setScreen({ name: 'settings', from: screen })}
+          onNotifications={() => setScreen({ name: 'notifications', from: screen })}
         />
       );
     case 'ledgers':
@@ -185,6 +204,7 @@ function MainApp({ session }: { session: AuthSession }) {
           customerName={customerName}
           initial={ledger!}
           onBack={() => setScreen({ name: 'records' })}
+          onHistory={() => setScreen({ name: 'history', targetId: ledger!.id, title: `台帳「${ledger!.name}」`, from: { name: 'ledgerEdit' } })}
           onSave={async (input) => {
             await updateLedger(ledger!.id, input);
             setScreen({ name: 'records' });
@@ -211,6 +231,7 @@ function MainApp({ session }: { session: AuthSession }) {
           onShoot={() => openEditor(null)}
           onImport={(files) => openEditor(files)}
           onOpen={(id, ids) => setScreen({ name: 'detail', id, ids })}
+          onNotifications={() => setScreen({ name: 'notifications', from: { name: 'records' } })}
         />
       );
     case 'editor':
@@ -313,12 +334,38 @@ function MainApp({ session }: { session: AuthSession }) {
           onNavigate={(id) => setScreen({ ...screen, id })}
           onBack={() => setScreen({ name: 'records' })}
           onFixBoard={(id) => setScreen({ name: 'boardFix', id, ids: screen.ids })}
+          onHistory={(id) => setScreen({ name: 'history', targetId: id, title: '作業記録', from: { ...screen, id } })}
         />
       );
     case 'boardFix':
       return <BoardFix recordId={screen.id} onBack={() => setScreen({ name: 'detail', id: screen.id, ids: screen.ids })} />;
     case 'settings':
       return <Settings session={session} onBack={() => setScreen(screen.from)} />;
+    case 'notifications':
+      return (
+        <Notifications
+          onBack={() => setScreen(screen.from)}
+          onOpenLedger={(id) => {
+            void db.ledgers.get(id).then((l) => {
+              if (l && !l.deletedAt) openLedger(l.mergedInto ?? l.id);
+              else alert('この台帳は削除されています');
+            });
+          }}
+          onOpenRecord={(recordId) => {
+            void db.records.get(recordId).then((r) => {
+              if (!r || r.deletedAt) {
+                alert('この作業記録は削除されています');
+                return;
+              }
+              setLedgerId(r.ledgerId);
+              prefs.setLastLedger(r.ledgerId);
+              setScreen({ name: 'detail', id: r.id, ids: [r.id] });
+            });
+          }}
+        />
+      );
+    case 'history':
+      return <ChangeHistory title={screen.title} targetId={screen.targetId} onBack={() => setScreen(screen.from)} />;
   }
 }
 

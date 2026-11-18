@@ -148,6 +148,62 @@ export function createSupabaseProvider(url: string, key: string): DataProvider {
       }
     },
 
+    async markNotificationsRead(ids, at) {
+      if (ids.length === 0) return;
+      await requireSession();
+      try {
+        const { error } = await client.from('notifications').update({ read_at: at }).in('id', ids);
+        if (error) throw error;
+      } catch (e) {
+        throw wrapError(e);
+      }
+    },
+
+    async fetchChangeLogs({ targetIds, limit, before }) {
+      await requireSession();
+      try {
+        let q = client.from('change_logs').select('*').order('created_at', { ascending: false }).limit(limit);
+        if (targetIds?.length) q = q.in('target_id', targetIds);
+        if (before) q = q.lt('created_at', before);
+        const { data, error } = await q;
+        if (error) throw error;
+        return (data ?? []) as RemoteRow[];
+      } catch (e) {
+        throw wrapError(e);
+      }
+    },
+
+    async dismissDuplicate(ledgerA, ledgerB) {
+      await requireSession();
+      try {
+        const [a, b] = ledgerA < ledgerB ? [ledgerA, ledgerB] : [ledgerB, ledgerA];
+        const { error } = await client.from('duplicate_dismissals').upsert([{ ledger_a: a, ledger_b: b }], { onConflict: 'ledger_a,ledger_b', ignoreDuplicates: true });
+        if (error) throw error;
+      } catch (e) {
+        throw wrapError(e);
+      }
+    },
+
+    async mergeLedgers(targetId, sourceId, fields) {
+      await requireSession();
+      try {
+        const { error } = await client.rpc('merge_ledgers', { p_target: targetId, p_source: sourceId, p_fields: fields });
+        if (error) throw error;
+      } catch (e) {
+        throw wrapError(e);
+      }
+    },
+
+    async unmergeLedger(sourceId) {
+      await requireSession();
+      try {
+        const { error } = await client.rpc('unmerge_ledger', { p_source: sourceId });
+        if (error) throw error;
+      } catch (e) {
+        throw wrapError(e);
+      }
+    },
+
     async downloadFile(path) {
       await requireSession();
       try {

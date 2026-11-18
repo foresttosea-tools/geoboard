@@ -3,6 +3,7 @@ import { useUnsentRecordIds } from '../sync/hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { diag } from '../lib/diag';
 import { SLOT_PLACE, SLOT_WORK, SLOT_WORKER } from '../blackboard/model';
+import { NotificationBell } from '../components/NotificationBell';
 import { Icon } from '../components/Icon';
 import { SyncBar } from '../components/SyncBar';
 import { useImageUrl } from '../sync/images';
@@ -21,9 +22,10 @@ interface Props {
   onImport: (files: File[]) => void;
   /** ids は一覧の並び順。詳細画面で前後の記録に移動するのに使う */
   onOpen: (id: string, ids: string[]) => void;
+  onNotifications: () => void;
 }
 
-export function RecordList({ ledger, customerName, onBack, onEditLedger, onShoot, onImport, onOpen }: Props) {
+export function RecordList({ ledger, customerName, onBack, onEditLedger, onShoot, onImport, onOpen, onNotifications }: Props) {
   useEffect(() => diag('screen:records'), []);
   const fileInput = useRef<HTMLInputElement>(null);
   const [view, setView] = useState(prefs.getListView());
@@ -59,6 +61,7 @@ export function RecordList({ ledger, customerName, onBack, onEditLedger, onShoot
           >
             <Icon name={view === 'list' ? 'grid' : 'list'} />
           </button>
+          <NotificationBell onClick={onNotifications} />
           <button className="icon-btn" aria-label="台帳情報" onClick={onEditLedger}>
             <Icon name="info" />
           </button>

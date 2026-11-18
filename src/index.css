@@ -634,3 +634,57 @@ button:disabled { opacity: 0.4; cursor: default; }
   .admin-split { grid-template-columns: 1fr; }
   .admin-modal { grid-template-columns: 1fr; grid-template-rows: 50vh auto; height: auto; max-height: 100%; overflow-y: auto; }
 }
+
+/* ---------------------------------------------------------------------------
+   ステップ4：通知・変更履歴・重複候補・操作ログ
+   --------------------------------------------------------------------------- */
+.btn-small { min-height: 36px; padding: 6px 12px; font-size: 13px; border-radius: 10px; }
+.bell-btn { position: relative; }
+.bell-badge {
+  position: absolute; top: 4px; right: 2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--c-danger); color: #fff; font-size: 11px; font-weight: 800; line-height: 18px; text-align: center;
+}
+
+.history-list, .notif-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.history-item, .notif-item {
+  background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--radius-sm); padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow-sm);
+}
+.history-item.conflict { border-left: 4px solid var(--c-warn); }
+.history-head, .notif-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.history-who { font-weight: 700; }
+.history-when, .notif-when { color: var(--c-muted); margin-left: auto; font-variant-numeric: tabular-nums; font-size: 12px; }
+.history-context { margin: 0; font-size: 13px; color: var(--c-muted); }
+.history-body { margin: 0; font-size: 14px; display: flex; flex-direction: column; gap: 4px; }
+.history-body strong { font-size: 13px; color: var(--c-muted); }
+.history-diff { margin: 0; padding: 0; list-style: none; overflow-wrap: anywhere; white-space: pre-wrap; }
+.history-diff del { color: var(--c-muted); }
+.history-diff ins { text-decoration: none; font-weight: 700; background: var(--brand-soft); border-radius: 4px; padding: 0 3px; }
+.history-item .btn { align-self: flex-start; }
+
+.notif-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 14px; color: var(--c-muted); }
+.notif-item.unread { border-left: 4px solid var(--brand); }
+.notif-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); flex: none; }
+.notif-body { margin: 0; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.notif-actions { display: flex; gap: 12px; align-items: center; }
+.pc-hint { margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; }
+.pc-hint p { margin: 0; }
+
+.dup-card { display: flex; flex-direction: column; gap: 10px; }
+.dup-card .hint { margin: 0; }
+.dup-names { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.dup-names div { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--c-surface-2); }
+.dup-names small { color: var(--c-muted); }
+.merge-table th { text-align: left; white-space: nowrap; }
+.merge-table td.picked { background: var(--brand-soft); }
+.merge-cell, .merge-target { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.merge-cell input, .merge-target input { accent-color: var(--brand); margin-top: 3px; }
+.merge-cell span { white-space: pre-wrap; overflow-wrap: anywhere; }
+.admin-history { max-width: 760px; }
+.admin-record-history { margin-top: 12px; }
+.admin-record-history summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
+.merged-banner { padding: 10px 14px; border-radius: 10px; background: color-mix(in srgb, var(--c-warn) 22%, transparent); margin-bottom: 12px; }
+.merge-table { margin-bottom: 16px; }
+.admin-page .admin-form-row + .history-list, .admin-page .admin-form-row + .hint { margin-top: 14px; }
+.admin-page .history-list + .btn-wide { margin-top: 14px; }
+.dup-badge { margin-left: 8px; vertical-align: 1px; }

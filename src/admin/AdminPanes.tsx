@@ -8,7 +8,7 @@ import type { Customer } from '../types';
 /** P08 仮顧客の処理（管理者。要件6.1） */
 export function ProvisionalPane() {
   const customers = useLiveQuery(() => db.customers.filter((c) => !c.deletedAt).toArray(), []);
-  const ledgers = useLiveQuery(() => db.ledgers.filter((l) => !l.deletedAt).toArray(), []);
+  const ledgers = useLiveQuery(() => db.ledgers.filter((l) => !l.deletedAt && !l.mergedInto).toArray(), []);
   const provisional = (customers ?? []).filter((c) => c.isProvisional);
   const regular = (customers ?? []).filter((c) => !c.isProvisional).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
 

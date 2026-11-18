@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { BOARD_SLOTS, SLOT_DATE, SLOT_PLACE, SLOT_WORK, formatBoardDate } from '../blackboard/model';
+import { HistoryList } from '../components/HistoryList';
 import { Icon } from '../components/Icon';
 import { LocationValue } from '../components/LocationValue';
 import { Marks, formatShotDate } from '../components/RecordMarks';
@@ -16,20 +17,23 @@ interface Props {
   ledgerId: string;
   isAdmin: boolean;
   onBack: () => void;
+  /** 最初に開く作業記録（通知から開いたとき） */
+  initialRecordId?: string | null;
 }
 
 /** P03 台帳詳細 */
-export function LedgerDetail({ ledgerId, onBack }: Props) {
+export function LedgerDetail({ ledgerId, onBack, initialRecordId }: Props) {
   const ledger = useLiveQuery(() => db.ledgers.get(ledgerId), [ledgerId]);
   const customer = useLiveQuery(async () => (ledger ? await db.customers.get(ledger.customerId) : undefined), [ledger?.customerId]);
   const recordsRaw = useLiveQuery(() => db.records.where('ledgerId').equals(ledgerId).filter((r) => !r.deletedAt).toArray(), [ledgerId]);
   const records = useMemo(() => [...(recordsRaw ?? [])].sort((a, b) => a.shotAt.localeCompare(b.shotAt)), [recordsRaw]);
-  const [tab, setTab] = useState<'records' | 'map'>('records');
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [tab, setTab] = useState<'records' | 'map' | 'history'>('records');
+  const [openId, setOpenId] = useState<string | null>(initialRecordId ?? null);
   const [reporting, setReporting] = useState(false);
   const [zipState, setZipState] = useState<string | null>(null);
 
   if (!ledger || !customer) return <div className="admin-page">読み込んでいます…</div>;
+  if (ledger.mergedInto) return <MergedNotice ledgerName={ledger.name} targetId={ledger.mergedInto} onBack={onBack} />;
 
   return (
     <div className="admin-page">
@@ -93,6 +97,9 @@ export function LedgerDetail({ ledgerId, onBack }: Props) {
         <button role="tab" aria-selected={tab === 'map'} className={tab === 'map' ? 'on' : ''} onClick={() => setTab('map')}>
           地図
         </button>
+        <button role="tab" aria-selected={tab === 'history'} className={tab === 'history' ? 'on' : ''} onClick={() => setTab('history')}>
+          台帳の変更履歴
+        </button>
       </div>
 
       {tab === 'records' ? (
@@ -116,8 +123,12 @@ export function LedgerDetail({ ledgerId, onBack }: Props) {
             ))}
           </ul>
         )
-      ) : (
+      ) : tab === 'map' ? (
         <MapView records={records} onOpen={setOpenId} />
+      ) : (
+        <div className="admin-history">
+          <HistoryList targetIds={[ledgerId]} />
+        </div>
       )}
 
       {openId && <RecordModal ids={records.map((r) => r.id)} id={openId} onChange={setOpenId} onClose={() => setOpenId(null)} />}
@@ -233,7 +244,11 @@ function RecordModal({ ids, id, onChange, onClose }: { ids: string[]; id: string
               </ul>
             </div>
           )}
-          <p className="hint">記録の修正はスマホのアプリで行います</p>
+          <details className="admin-record-history">
+            <summary>変更履歴</summary>
+            <HistoryList key={r.id} targetIds={[r.id]} />
+          </details>
+          <p className="hint">記録の修正はスマホのアプリで行います（変更履歴から以前の内容に戻すことはここでもできます）</p>
         </div>
       </div>
     </div>
@@ -246,5 +261,18 @@ function ExtraThumbButton({ x, active, onClick }: { x: ExtraPhoto; active: boole
     <button className={`admin-extra-thumb ${active ? 'on' : ''}`} onClick={onClick} aria-label="追加写真を表示">
       {url && <img src={url} alt="" />}
     </button>
+  );
+}
+
+function MergedNotice({ ledgerName, targetId, onBack }: { ledgerName: string; targetId: string; onBack: () => void }) {
+  const target = useLiveQuery(() => db.ledgers.get(targetId), [targetId]);
+  return (
+    <div className="admin-page">
+      <button className="text-btn back-link" onClick={onBack}>
+        <Icon name="back" size={16} />
+        台帳一覧
+      </button>
+      <p className="merged-banner">台帳「{ledgerName}」は「{target?.name ?? ''}」に統合されました。作業記録は統合先の台帳にあります</p>
+    </div>
   );
 }

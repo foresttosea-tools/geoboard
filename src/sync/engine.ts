@@ -10,6 +10,8 @@ import { getProvider } from './config';
 import {
   customerFromRow,
   customerToRow,
+  dismissalFromRow,
+  notificationFromRow,
   extraFromRow,
   extraToRow,
   ledgerFromRow,
@@ -20,7 +22,7 @@ import {
   templateFromRow,
   templateToRow,
 } from './mapping';
-import { AuthRequiredError, NetworkError, type RemoteRow } from './provider';
+import { AuthRequiredError, NetworkError, type PullTable, type RemoteRow } from './provider';
 
 /**
  * 同期エンジン（要件7）
@@ -91,6 +93,8 @@ interface Syncable {
   id: string;
   updatedAt: string;
   syncStatus: SyncStatus;
+  remote?: boolean;
+  fieldBase?: Record<string, unknown>;
 }
 
 /** 送信に成功した行を「送信済み」にする。送信中に端末で更新されていたら未送信のまま残す */
@@ -99,7 +103,10 @@ async function markSynced<T extends Syncable>(table: AnyTable<T>, sent: T[], ext
     for (const r of sent) {
       const cur = await table.get(r.id);
       if (cur && cur.updatedAt === r.updatedAt && cur.syncStatus !== 'synced') {
-        await table.update(r.id, { syncStatus: 'synced', syncError: undefined, ...(extra?.(r) ?? {}) } as never);
+        await table.update(r.id, { syncStatus: 'synced', syncError: undefined, remote: true, fieldBase: undefined, ...(extra?.(r) ?? {}) } as never);
+      } else if (cur && !cur.remote) {
+        // 送信中に端末で更新された場合も、サーバーにはもうあるので印だけ付ける（次の送信は項目単位）
+        await table.update(r.id, { remote: true, ...(extra?.(r) ?? {}) } as never);
       }
     }
   });
@@ -215,7 +222,15 @@ async function pushRecords(onProgress: () => void) {
         originalPath: uploaded.original ?? rec.originalPath ?? null,
         thumbPath: uploaded.thumb ?? rec.thumbPath ?? null,
       };
-      await withRetry(() => getProvider().upsert('records', [recordToRow(withPaths)]));
+      const row = recordToRow(withPaths);
+      // サーバーにある記録の写真を差し替えたときは、写真の保存場所も送る項目に含める
+      if (row.sync_base) {
+        const base = row.sync_base as Record<string, unknown>;
+        if (uploaded.composite && uploaded.composite !== rec.compositePath) base.composite_path = rec.compositePath ?? null;
+        if (uploaded.original && uploaded.original !== rec.originalPath) base.original_path = rec.originalPath ?? null;
+        if (uploaded.thumb && uploaded.thumb !== rec.thumbPath) base.thumb_path = rec.thumbPath ?? null;
+      }
+      await withRetry(() => getProvider().upsert('records', [row]));
       await markSynced(db.records, [rec], () => ({
         compositePath: withPaths.compositePath,
         originalPath: withPaths.originalPath,
@@ -274,6 +289,16 @@ async function push() {
   await pushRecords(onProgress);
   await pushExtras(onProgress);
   await pushSimple(db.templates, 'blackboard_templates', templateToRow);
+  await pushNotificationReads();
+}
+
+/** 既読にした通知をサーバーに送る */
+async function pushNotificationReads() {
+  const rows = await db.notifications.filter((n) => !!n.readPending).toArray();
+  if (rows.length === 0) return;
+  const at = rows[0].readAt ?? new Date().toISOString();
+  await withRetry(() => getProvider().markNotificationsRead(rows.map((n) => n.id), at));
+  await db.notifications.bulkUpdate(rows.map((n) => ({ key: n.id, changes: { readPending: false } })));
 }
 
 // ---------------------------------------------------------------------------
@@ -289,6 +314,28 @@ async function pullTable<T extends Syncable>(
   table: AnyTable<T>,
   fromRow: (r: RemoteRow) => T,
 ) {
+  await pullRows(remote, table, (incoming, local) => {
+    const row = fromRow(incoming);
+    if (!local || local.syncStatus === 'synced') return row;
+    // 端末で編集中の項目がある場合：サーバーの内容を取り込み、編集した項目だけ端末の値を残す（項目単位のマージ。要件7.3）
+    if (local.remote && local.fieldBase) {
+      const mine: Record<string, unknown> = {};
+      for (const k of Object.keys(local.fieldBase)) mine[k] = (local as unknown as Record<string, unknown>)[k];
+      return { ...row, ...mine, syncStatus: local.syncStatus, syncError: (local as { syncError?: string }).syncError, fieldBase: local.fieldBase, updatedAt: local.updatedAt > row.updatedAt ? local.updatedAt : row.updatedAt } as T;
+    }
+    // 端末に未送信の変更があり、そちらが新しい場合は端末を優先
+    if (local.updatedAt >= row.updatedAt) return null;
+    return row;
+  });
+}
+
+/** 差分取得の共通部分。merge が null を返した行は取り込まない */
+async function pullRows<T>(
+  remote: PullTable,
+  table: AnyTable<T>,
+  merge: (incoming: RemoteRow, local: T | undefined) => T | null,
+  keyOf: (r: RemoteRow) => string = (r) => String(r.id),
+) {
   const provider = getProvider();
   const metaKey = `pull.${remote}`;
   const last = (await db.meta.get(metaKey))?.value ?? null;
@@ -298,11 +345,9 @@ async function pullTable<T extends Syncable>(
     if (rows.length === 0) break;
     await syncTransaction([table, db.meta], async () => {
       for (const row of rows) {
-        const incoming = fromRow(row);
-        const local = await table.get(incoming.id);
-        // 端末に未送信の変更があり、そちらが新しい場合は端末を優先（項目単位のマージはステップ4）
-        if (local && local.syncStatus !== 'synced' && local.updatedAt >= incoming.updatedAt) continue;
-        await table.put(incoming);
+        const local = await table.get(keyOf(row));
+        const merged = merge(row, local);
+        if (merged) await table.put(merged);
       }
       const maxSeen = String(rows[rows.length - 1].server_updated_at);
       await db.meta.put({ key: metaKey, value: maxSeen });
@@ -318,6 +363,12 @@ async function pull() {
   await pullTable('records', db.records, recordFromRow);
   await pullTable('record_extras', db.extras, extraFromRow);
   await pullTable('blackboard_templates', db.templates, templateFromRow);
+  await pullRows('notifications', db.notifications, (row, local) => {
+    const n = notificationFromRow(row);
+    // 端末で既読にしてまだ送っていない場合は、端末の既読を残す
+    return local?.readPending ? { ...n, readAt: local.readAt, readPending: true } : n;
+  });
+  await pullRows('duplicate_dismissals', db.dismissals, (row) => dismissalFromRow(row), (r) => `${r.ledger_a}:${r.ledger_b}`);
 }
 
 /** ユーザー一覧を取り込み、自分の表示名・停止状態を反映する */
@@ -485,8 +536,8 @@ export async function resetLocalData() {
   // 同期の途中なら終わるのを待つ（書き込み中に消さないため）
   for (let i = 0; i < 100 && state.running; i++) await sleep(200);
   diag('reset-local');
-  await db.transaction('rw', [db.customers, db.ledgers, db.records, db.images, db.templates, db.extras, db.profiles, db.meta], async () => {
-    await Promise.all([db.customers, db.ledgers, db.records, db.images, db.templates, db.extras, db.profiles, db.meta].map((t) => t.clear()));
+  await db.transaction('rw', [db.customers, db.ledgers, db.records, db.images, db.templates, db.extras, db.profiles, db.meta, db.notifications, db.dismissals], async () => {
+    await Promise.all([db.customers, db.ledgers, db.records, db.images, db.templates, db.extras, db.profiles, db.meta, db.notifications, db.dismissals].map((t) => t.clear()));
   });
   prefs.setLastLedger(null);
 }

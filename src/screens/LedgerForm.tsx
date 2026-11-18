@@ -10,12 +10,14 @@ interface Props {
   onSave: (input: LedgerInput) => Promise<void>;
   /** 台帳の削除（管理者のみ。編集時） */
   onDelete?: () => void;
+  /** 変更履歴を開く（編集時） */
+  onHistory?: () => void;
 }
 
 const EMPTY: LedgerInput = { name: '', startDate: '', endDate: '', manager: '', note: '' };
 
 /** S06 台帳登録・編集 */
-export function LedgerForm({ title, customerName, initial, onBack, onSave, onDelete }: Props) {
+export function LedgerForm({ title, customerName, initial, onBack, onSave, onDelete, onHistory }: Props) {
   const [v, setV] = useState<LedgerInput>(initial ?? EMPTY);
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof LedgerInput>(k: K, value: LedgerInput[K]) => setV({ ...v, [k]: value });
@@ -30,7 +32,13 @@ export function LedgerForm({ title, customerName, initial, onBack, onSave, onDel
           <Icon name="back" />
         </button>
         <h1>{title}</h1>
-        <span />
+        {onHistory ? (
+          <button type="button" className="icon-btn" aria-label="変更履歴" onClick={onHistory}>
+            <Icon name="history" />
+          </button>
+        ) : (
+          <span />
+        )}
       </header>
       <form
         className="screen-body form-body"

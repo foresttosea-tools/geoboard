@@ -51,10 +51,16 @@ export interface Ledger {
   manager: string;
   note: string;
   lastBoard: BoardContent | null;
+  /** 統合された場合の統合先台帳（統合された台帳は一覧に出さない） */
+  mergedInto?: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  /** サーバーに送信済みの行か（項目単位のマージに使う） */
+  remote?: boolean;
+  /** 送信前に端末で編集した項目と、編集を始めたときの値（項目単位のマージ・衝突の判定用。要件7.3） */
+  fieldBase?: Record<string, unknown>;
   syncStatus: SyncStatus;
   syncError?: string;
 }
@@ -83,6 +89,10 @@ export interface WorkRecord {
   compositePath?: string | null;
   originalPath?: string | null;
   thumbPath?: string | null;
+  /** サーバーに送信済みの行か（項目単位のマージに使う） */
+  remote?: boolean;
+  /** 送信前に端末で編集した項目と、編集を始めたときの値（項目単位のマージ・衝突の判定用。要件7.3） */
+  fieldBase?: Record<string, unknown>;
   syncStatus: SyncStatus;
   syncError?: string;
   createdBy: string;
@@ -151,4 +161,36 @@ export interface Profile {
   role: 'admin' | 'member';
   disabled: boolean;
   updatedAt: string;
+}
+
+/** アプリ内通知（要件6.1・6.2・7.3） */
+export interface AppNotification {
+  id: string;
+  type: 'conflict' | 'duplicate_candidate' | 'provisional_customer';
+  payload: Record<string, unknown>;
+  readAt: string | null;
+  createdAt: string;
+  /** 既読にしたが、まだサーバーに送っていない */
+  readPending?: boolean;
+}
+
+/** 重複ではないと判定した台帳のペア（ledgerA < ledgerB） */
+export interface DuplicateDismissal {
+  key: string;
+  ledgerA: string;
+  ledgerB: string;
+}
+
+/** 変更履歴・操作ログの1件（サーバーの change_logs。端末には保存しない） */
+export interface ChangeLog {
+  id: string;
+  targetTable: string;
+  targetId: string;
+  action: 'create' | 'update' | 'delete' | 'restore' | 'merge' | 'unmerge' | 'conflict_overwrite';
+  field: string | null;
+  before: unknown;
+  after: unknown;
+  userId: string | null;
+  overwrittenUserId: string | null;
+  createdAt: string;
 }

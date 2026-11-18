@@ -4,8 +4,9 @@ const path = require('path');
 const server = spawn(process.execPath, [path.join(__dirname, 'serve.cjs'), path.join(__dirname, '../../dist')], { stdio: 'ignore' });
 setTimeout(() => {
   const admin = process.argv.includes('--admin');
-  const args = process.argv.slice(2).filter((a) => a !== '--admin');
-  const t = spawn(process.execPath, [path.join(__dirname, admin ? 'admin.cjs' : 'sync.cjs'), ...args], { stdio: 'inherit' });
+  const step4 = process.argv.includes('--step4');
+  const args = process.argv.slice(2).filter((a) => a !== '--admin' && a !== '--step4');
+  const t = spawn(process.execPath, [path.join(__dirname, admin ? 'admin.cjs' : step4 ? 'step4.cjs' : 'sync.cjs'), ...args], { stdio: 'inherit' });
   t.on('exit', (code) => {
     server.kill();
     process.exit(code ?? 1);
