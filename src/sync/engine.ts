@@ -140,16 +140,31 @@ async function basePathFor(ledgerId: string) {
   return `${ledger?.customerId ?? 'unknown'}/${ledgerId}`;
 }
 
-async function uploadImages(images: StoredImage[], pathOf: (img: StoredImage) => string): Promise<Record<string, string>> {
+/**
+ * 画像を送信する。送るたびにファイル名に版の印を付ける。
+ * 同じファイル名に上書きすると、アプリやサーバーの一時保存（キャッシュ）から古い写真が出てしまうため
+ * （黒板を修正して写真を作り直したときなど）
+ */
+async function uploadImages(
+  images: StoredImage[],
+  pathOf: (img: StoredImage, rev: string) => string,
+  existing: Partial<Record<StoredImage['kind'], string | null | undefined>>,
+): Promise<Record<string, string>> {
   const provider = getProvider();
   const paths: Record<string, string> = {};
+  const rev = Date.now().toString(36);
   for (const img of images) {
-    const path = pathOf(img);
-    if (!img.uploaded) {
-      diag('sync:upload', `${img.kind} ${Math.round(img.blob.size / 1024)}KB`);
-      await withRetry(() => provider.uploadFile(path, img.blob));
-      await db.images.update(img.key, { uploaded: true });
+    if (img.uploaded) {
+      const known = img.path ?? existing[img.kind];
+      if (known) {
+        paths[img.kind] = known;
+        continue;
+      }
     }
+    const path = pathOf(img, rev);
+    diag('sync:upload', `${img.kind} ${Math.round(img.blob.size / 1024)}KB`);
+    await withRetry(() => provider.uploadFile(path, img.blob));
+    await db.images.update(img.key, { uploaded: true, path });
     paths[img.kind] = path;
   }
   return paths;
@@ -170,7 +185,11 @@ async function pushRecords(onProgress: () => void) {
         .equals(rec.id)
         .filter((i) => i.kind === 'composite' || i.kind === 'original' || i.kind === 'thumb')
         .toArray();
-      const uploaded = await uploadImages(images, (img) => `${base}_${img.kind}.jpg`);
+      const uploaded = await uploadImages(images, (img, rev) => `${base}_${img.kind}_${rev}.jpg`, {
+        composite: rec.compositePath,
+        original: rec.originalPath,
+        thumb: rec.thumbPath,
+      });
       const withPaths: WorkRecord = {
         ...rec,
         compositePath: uploaded.composite ?? rec.compositePath ?? null,
@@ -209,7 +228,10 @@ async function pushExtras(onProgress: () => void) {
       const base = `${await basePathFor(parent.ledgerId)}/${x.recordId}_extra_${x.id}`;
       const images = await db.images.bulkGet([`${x.id}:extra`, `${x.id}:extra_thumb`]);
       const present = images.filter((i): i is StoredImage => i != null);
-      const uploaded = await uploadImages(present, (img) => (img.kind === 'extra' ? `${base}.jpg` : `${base}_thumb.jpg`));
+      const uploaded = await uploadImages(present, (img, rev) => (img.kind === 'extra' ? `${base}_${rev}.jpg` : `${base}_thumb_${rev}.jpg`), {
+        extra: x.path,
+        extra_thumb: x.thumbPath,
+      });
       const withPaths: ExtraPhoto = { ...x, path: uploaded.extra ?? x.path ?? null, thumbPath: uploaded.extra_thumb ?? x.thumbPath ?? null };
       await withRetry(() => getProvider().upsert('record_extras', [extraToRow(withPaths)]));
       await markSynced(db.extras, [x], () => ({ path: withPaths.path, thumbPath: withPaths.thumbPath }));

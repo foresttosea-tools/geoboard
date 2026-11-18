@@ -56,7 +56,9 @@ export function useImageUrl(
   const [remote, setRemote] = useState<{ path: string; blob: Blob | null; error: boolean } | null>(null);
   const [url, setUrl] = useState<string | null>(null);
 
-  const needRemote = local === null && !!remotePath;
+  // 端末の画像がサーバーの最新と違う保存場所のものなら（別の端末で写真が作り直された場合など）取り直す
+  const localStale = !!(local && local.path && remotePath && local.path !== remotePath);
+  const needRemote = (local === null || localStale) && !!remotePath;
   const persistKey = opts.persist ? `${opts.persist.recordId}:${opts.persist.kind}` : null;
 
   useEffect(() => {
@@ -66,7 +68,7 @@ export function useImageUrl(
       .then(async (blob) => {
         if (cancelled) return;
         if (opts.persist && localKey) {
-          await db.images.put({ key: localKey, recordId: opts.persist.recordId, kind: opts.persist.kind, blob, uploaded: true });
+          await db.images.put({ key: localKey, recordId: opts.persist.recordId, kind: opts.persist.kind, blob, uploaded: true, path: remotePath });
         } else {
           setRemote({ path: remotePath, blob, error: false });
         }
@@ -79,7 +81,8 @@ export function useImageUrl(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needRemote, remotePath, localKey, persistKey]);
 
-  const blob = local?.blob ?? (remote && remote.path === remotePath ? remote.blob : null);
+  const remoteBlob = remote && remote.path === remotePath ? remote.blob : null;
+  const blob = (localStale ? remoteBlob : null) ?? local?.blob ?? remoteBlob;
   useEffect(() => {
     if (!blob) {
       setUrl(null);

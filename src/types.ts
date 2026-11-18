@@ -102,6 +102,8 @@ export interface StoredImage {
   blob: Blob;
   /** サーバーへ送信済みか */
   uploaded?: boolean;
+  /** サーバー上の保存場所（送信済み、またはサーバーから取り寄せた画像） */
+  path?: string;
 }
 
 export interface BoardTemplate {

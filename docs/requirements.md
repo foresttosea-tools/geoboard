@@ -233,9 +233,13 @@ GeoBoardは、現場での設置工事を記録するための社内向けPWA。
 photos/
 └─ {customer_id}/
    └─ {ledger_id}/
-      ├─ {record_id}_composite.jpg
-      ├─ {record_id}_original.jpg
-      └─ {record_id}_extra_{extra_id}.jpg   … 追加写真
+      ├─ {record_id}_composite_{版}.jpg
+      ├─ {record_id}_original_{版}.jpg
+      ├─ {record_id}_thumb_{版}.jpg
+      └─ {record_id}_extra_{extra_id}_{版}.jpg   … 追加写真
+
+- {版} は送信のたびに変わる印。黒板の修正などで写真を作り直したとき、同じファイル名に上書きすると端末やサーバーの一時保存から古い写真が表示されるため、毎回別の名前で保存する
+- 作り直す前の古い画像はサーバーに残る（容量の整理は今後の課題）
 ```
 
 - PC管理画面からZIPでダウンロードする際は、`{顧客名}_{工事名称}/{撮影日}_{連番}.jpg` に名前を変換して格納する
