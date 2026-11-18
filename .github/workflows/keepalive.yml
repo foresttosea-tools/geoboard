@@ -1,0 +1,33 @@
+# Supabase無料プランの一時停止（1週間アクセスがないと停止）を防ぐため、週1回サーバーに軽くアクセスする。
+# 接続先と公開用キー（公開してよい値）は src/sync/config.ts の初期値を使う。
+# サーバーが止まっている・応答しない場合はこのワークフローが失敗し、GitHubからメールで知らせが届く
+name: Keep Supabase awake
+
+on:
+  schedule:
+    # 毎週月曜 12:17（日本時間）
+    - cron: '17 3 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ping Supabase
+        run: |
+          URL=$(grep -oE "url: 'https://[^']+'" src/sync/config.ts | head -1 | sed -E "s/url: '(.*)'/\1/")
+          KEY=$(grep -oE "key: '[^']+'" src/sync/config.ts | head -1 | sed -E "s/key: '(.*)'/\1/")
+          # データベースまで届く問い合わせ（未ログインなので中身は返らず、権限エラーが返れば正常）
+          for i in 1 2 3; do
+            CODE=$(curl -s -o body.txt -w '%{http_code}' --max-time 30 "$URL/rest/v1/customers?select=id&limit=1" -H "apikey: $KEY" || echo 000)
+            echo "HTTP $CODE: $(head -c 200 body.txt)"
+            if grep -q '"code"' body.txt && [ "$CODE" -lt 500 ]; then exit 0; fi
+            if [ "$CODE" = "200" ]; then exit 0; fi
+            sleep 20
+          done
+          echo "::error::Supabaseが応答しません。管理画面でプロジェクトが一時停止されていないか確認してください"
+          exit 1
