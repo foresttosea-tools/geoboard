@@ -128,6 +128,15 @@ function createMock() {
       const token = tokenFor(u, email);
       return json(200, { access_token: token, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'r-' + u.id, user: { id: u.id, email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() } });
     }
+    if (p === '/auth/v1/user' && req.method() === 'PUT') {
+      const uidP = userFromAuth(req.headers());
+      const entry = Object.entries(users).find(([, u]) => u.id === uidP);
+      if (!entry) return json(401, { msg: 'not authenticated' });
+      const { password } = JSON.parse(req.postData() || '{}');
+      if (password === entry[1].password) return json(422, { code: 'same_password', msg: 'New password should be different from the old password.' });
+      entry[1].password = password;
+      return json(200, { id: entry[1].id, email: entry[0], aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: new Date().toISOString() });
+    }
     if (p.startsWith('/auth/v1/')) return route.fulfill({ status: 204, body: '' });
     const uid = userFromAuth(req.headers());
     if (p.startsWith('/rest/v1/') && !uid) return json(401, { code: 'PGRST301', message: 'JWT expired' });
@@ -316,6 +325,6 @@ function createMock() {
     errors.push(`unhandled ${req.method()} ${p}`);
     return json(404, { message: 'mock: unhandled' });
   }
-  return { handle, store, files, fileTimes, profiles, errors, failRecordIds, columns, logs };
+  return { handle, users, store, files, fileTimes, profiles, errors, failRecordIds, columns, logs };
 }
 module.exports = { createMock };

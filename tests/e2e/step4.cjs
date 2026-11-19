@@ -264,6 +264,30 @@ const check = (label, ok, detail = '') => {
   const removed = [...before].filter((k) => !mock.files.has(k));
   check('古い版だけ削除し、表示中・24時間以内・未登録・削除済みの写真は残す', removed.length === 2 && removed.every((k) => /oldrev1/.test(k)), removed.join(','));
 
+  // ---- 10. パスワードの変更（B）
+  await B.getByLabel('戻る').click();
+  await B.getByLabel('戻る').click();
+  await B.getByLabel('設定').click();
+  await B.getByRole('button', { name: 'パスワードを変更' }).click();
+  await B.getByLabel('今のパスワード').fill('wrong-pass');
+  await B.getByLabel('新しいパスワード（8文字以上）').fill('new-pass-123');
+  await B.getByLabel('新しいパスワード（確認）').fill('new-pass-123');
+  await B.getByRole('button', { name: '変更する' }).click();
+  await B.waitForSelector('.password-form .danger');
+  check('今のパスワードが違うと変更できない', (await B.locator('.password-form .danger').innerText()).includes('今のパスワードが違います') && mock.users['michi@example.com'].password === 'pass-m');
+  await B.getByLabel('今のパスワード').fill('pass-m');
+  await B.getByRole('button', { name: '変更する' }).click();
+  await B.waitForSelector('text=パスワードを変更しました');
+  check('パスワードを変更できる', mock.users['michi@example.com'].password === 'new-pass-123');
+  await shot(B, 's4-09-password');
+  await B.getByRole('button', { name: 'ログアウト' }).click();
+  await B.waitForSelector('.login-form');
+  await B.getByLabel('メールアドレス').fill('michi@example.com');
+  await B.getByLabel('パスワード').fill('new-pass-123');
+  await B.getByRole('button', { name: 'ログイン' }).click();
+  await B.waitForSelector('text=顧客一覧');
+  check('新しいパスワードでログインできる', true);
+
   check('画面のエラーなし', A.errs.length + B.errs.length + P.errs.length === 0, JSON.stringify([A.errs, B.errs, P.errs]));
   check('モックの列・経路エラーなし', mock.errors.length === 0, JSON.stringify(mock.errors));
   await b.close();

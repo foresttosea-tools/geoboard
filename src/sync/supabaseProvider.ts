@@ -75,6 +75,26 @@ export function createSupabaseProvider(url: string, key: string): DataProvider {
       }
     },
 
+    async changePassword(email, currentPassword, newPassword) {
+      try {
+        // 今のパスワードで本人確認する（ログインし直すことで、Supabaseの「最近ログインした」条件も満たす）
+        const { error: signInError } = await client.auth.signInWithPassword({ email, password: currentPassword });
+        if (signInError) {
+          if (signInError.name === 'AuthRetryableFetchError') throw new NetworkError();
+          throw new Error(/invalid login credentials/i.test(signInError.message) ? '今のパスワードが違います' : signInError.message);
+        }
+        const { error } = await client.auth.updateUser({ password: newPassword });
+        if (error) {
+          if (error.name === 'AuthRetryableFetchError') throw new NetworkError();
+          if (/should be different/i.test(error.message)) throw new Error('新しいパスワードが今のパスワードと同じです');
+          if (/at least|weak|short/i.test(error.message)) throw new Error('新しいパスワードが短すぎるか、簡単すぎます');
+          throw new Error(error.message);
+        }
+      } catch (e) {
+        throw wrapError(e);
+      }
+    },
+
     async signOut() {
       // 圏外でも端末のログイン状態は消す
       await client.auth.signOut({ scope: 'local' }).catch(() => undefined);

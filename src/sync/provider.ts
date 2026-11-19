@@ -39,6 +39,8 @@ export interface DataProvider {
   getSession(): Promise<AuthSession | null>;
   signIn(email: string, password: string): Promise<AuthSession>;
   signOut(): Promise<void>;
+  /** 自分のパスワードを変える（今のパスワードで本人確認してから） */
+  changePassword(email: string, currentPassword: string, newPassword: string): Promise<void>;
   /** ログイン状態が外部要因で変わったとき（トークン失効など） */
   onSessionChange(fn: (s: AuthSession | null) => void): () => void;
 

@@ -79,6 +79,7 @@ export function Settings({ session, onBack }: Props) {
             </div>
           </dl>
           <DisplayNameField me={me} online={online} />
+          <PasswordChange email={session.email} online={online} />
           <button
             className="btn btn-wide"
             onClick={async () => {
@@ -289,6 +290,77 @@ function DisplayNameField({ me, online }: { me: Profile | undefined; online: boo
       {!online && <p className="hint">表示名の変更には電波が必要です</p>}
       {msg && <p className="hint">{msg}</p>}
     </div>
+  );
+}
+
+/** パスワードの変更（要件4.1）。今のパスワードで本人確認してから変える */
+function PasswordChange({ email, online }: { email: string; online: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [again, setAgain] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const tooShort = next.length > 0 && next.length < 8;
+  const mismatch = again.length > 0 && next !== again;
+  const can = online && !busy && current !== '' && next.length >= 8 && next === again;
+
+  if (!open)
+    return (
+      <>
+        <button className="btn btn-wide" onClick={() => { setOpen(true); setMsg(null); }}>
+          パスワードを変更
+        </button>
+        {msg?.ok && <p className="hint">{msg.text}</p>}
+      </>
+    );
+  return (
+    <form
+      className="password-form"
+      onSubmit={async (e) => {
+        e.preventDefault();
+        if (!can) return;
+        setBusy(true);
+        setMsg(null);
+        try {
+          await getProvider().changePassword(email, current, next);
+          setOpen(false);
+          setCurrent('');
+          setNext('');
+          setAgain('');
+          setMsg({ ok: true, text: 'パスワードを変更しました。次にログインするときから新しいパスワードを使います' });
+        } catch (err) {
+          setMsg({ ok: false, text: (err as Error).message });
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      <label className="field">
+        <span>今のパスワード</span>
+        <input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} />
+      </label>
+      <label className="field">
+        <span>新しいパスワード（8文字以上）</span>
+        <input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} />
+      </label>
+      {tooShort && <p className="hint danger">8文字以上にしてください</p>}
+      <label className="field">
+        <span>新しいパスワード（確認）</span>
+        <input type="password" autoComplete="new-password" value={again} onChange={(e) => setAgain(e.target.value)} />
+      </label>
+      {mismatch && <p className="hint danger">新しいパスワードが一致しません</p>}
+      {!online && <p className="hint">パスワードの変更には電波が必要です</p>}
+      {msg && !msg.ok && <p className="hint danger">{msg.text}</p>}
+      <div className="dialog-actions row">
+        <button type="button" className="btn" onClick={() => { setOpen(false); setMsg(null); }} disabled={busy}>
+          キャンセル
+        </button>
+        <button type="submit" className="btn btn-primary" disabled={!can}>
+          {busy ? '変更しています…' : '変更する'}
+        </button>
+      </div>
+    </form>
   );
 }
 
