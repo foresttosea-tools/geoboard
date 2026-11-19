@@ -239,6 +239,31 @@ const check = (label, ok, detail = '') => {
   check('PCの作業記録に変更履歴', (await P.locator('.admin-record-history .history-item').count()) >= 3);
   await shot(P, 's4-07-pc-record-history');
 
+  // ---- 9. 保存容量と古い写真のお掃除
+  const rec0 = [...mock.store.records.values()].find((r) => r.composite_path);
+  const dir = rec0.composite_path.split('/').slice(0, -1).join('/');
+  const old = new Date(Date.now() - 3 * 24 * 3600 * 1000).toISOString();
+  const put = (name, iso, size = 3000) => { mock.files.set(`${dir}/${name}`, Buffer.alloc(size)); mock.fileTimes.set(`${dir}/${name}`, iso); };
+  put(`${rec0.id}_composite_oldrev1.jpg`, old); // 黒板修正前の古い版（消してよい）
+  put(`${rec0.id}_thumb_oldrev1.jpg`, old, 500); // 同上
+  put(`${rec0.id}_composite_newrev.jpg`, new Date().toISOString()); // 24時間以内（送信途中の可能性があるので残す）
+  put(`aaaaaaaa-0000-4000-8000-000000000000_composite_x.jpg`, old); // 記録がサーバーにない（残す）
+  const deletedRec = { ...rec0, id: 'bbbbbbbb-0000-4000-8000-000000000000', deleted_at: old, composite_path: `${dir}/bbbbbbbb-0000-4000-8000-000000000000_composite_r.jpg` };
+  mock.store.records.set(deletedRec.id, { ...deletedRec, server_updated_at: new Date().toISOString() });
+  put(`bbbbbbbb-0000-4000-8000-000000000000_composite_r.jpg`, old); // 削除済みの記録の写真（復元用に残す）
+  const before = new Set(mock.files.keys());
+  await P.locator('.admin-modal-backdrop').click({ position: { x: 5, y: 5 } });
+  await P.locator('.admin-nav button', { hasText: '保存容量' }).click();
+  await P.getByRole('button', { name: '使用量を調べる' }).click();
+  await P.waitForSelector('.storage-card');
+  const storageText = await P.locator('.admin-page').innerText();
+  check('使用量と古い写真の件数', /古い写真|使われなくなった写真が 2ファイル/.test(storageText) && /2ファイル/.test(storageText), storageText.replace(/\n/g, ' / ').slice(0, 300));
+  await shot(P, 's4-08-storage');
+  await P.getByRole('button', { name: '古い写真を削除' }).click();
+  await P.waitForSelector('text=使われなくなった古い写真はありません', { timeout: 10000 });
+  const removed = [...before].filter((k) => !mock.files.has(k));
+  check('古い版だけ削除し、表示中・24時間以内・未登録・削除済みの写真は残す', removed.length === 2 && removed.every((k) => /oldrev1/.test(k)), removed.join(','));
+
   check('画面のエラーなし', A.errs.length + B.errs.length + P.errs.length === 0, JSON.stringify([A.errs, B.errs, P.errs]));
   check('モックの列・経路エラーなし', mock.errors.length === 0, JSON.stringify(mock.errors));
   await b.close();

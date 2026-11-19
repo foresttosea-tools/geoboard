@@ -688,3 +688,10 @@ button:disabled { opacity: 0.4; cursor: default; }
 .admin-page .admin-form-row + .history-list, .admin-page .admin-form-row + .hint { margin-top: 14px; }
 .admin-page .history-list + .btn-wide { margin-top: 14px; }
 .dup-badge { margin-left: 8px; vertical-align: 1px; }
+.storage-card { margin-top: 16px; }
+.storage-card h2 { font-size: 16px; margin: 0 0 8px; }
+.storage-card p { margin: 0 0 10px; }
+.storage-total strong { font-size: 22px; }
+.storage-bar { height: 12px; border-radius: 6px; background: var(--c-surface-2); border: 1px solid var(--c-border); overflow: hidden; margin-bottom: 10px; }
+.storage-bar span { display: block; height: 100%; background: var(--brand); }
+.storage-bar span.warn { background: var(--c-pending); }

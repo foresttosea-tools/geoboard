@@ -25,6 +25,13 @@ export interface RemoteProfile {
   updated_at: string;
 }
 
+/** 写真の保存場所にあるファイル */
+export interface RemoteFile {
+  path: string;
+  size: number;
+  createdAt: string;
+}
+
 export interface DataProvider {
   readonly kind: string;
 
@@ -53,6 +60,11 @@ export interface DataProvider {
   mergeLedgers(targetId: string, sourceId: string, fields: Record<string, unknown>): Promise<void>;
   /** 台帳の統合を取り消す（管理者） */
   unmergeLedger(sourceId: string): Promise<void>;
+
+  /** 写真の保存場所にあるファイルをすべて列挙する */
+  listFiles(): Promise<RemoteFile[]>;
+  /** ファイルを削除する（管理者） */
+  deleteFiles(paths: string[]): Promise<void>;
 
   /** 画像を保存し、サーバーに正しく届いたか（サイズ一致）を確認する */
   uploadFile(path: string, blob: Blob): Promise<void>;

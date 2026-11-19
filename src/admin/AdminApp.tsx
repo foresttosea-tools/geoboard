@@ -11,11 +11,12 @@ import type { AuthSession } from '../sync/provider';
 import { UserAdmin } from '../screens/Settings';
 import { DeletedPane, ProvisionalPane } from './AdminPanes';
 import { DuplicatesPane, LogPane, NotificationsPane } from './Step4Panes';
+import { StoragePane } from './StoragePane';
 import { findDuplicatePairs } from '../lib/duplicates';
 import type { AppNotification } from '../types';
 import { LedgerDetail } from './LedgerDetail';
 
-type View = 'ledgers' | 'notifications' | 'duplicates' | 'provisional' | 'deleted' | 'logs' | 'users';
+type View = 'ledgers' | 'notifications' | 'duplicates' | 'provisional' | 'deleted' | 'logs' | 'storage' | 'users';
 
 /** PC管理画面（#admin。要件8） */
 export function AdminApp({ session }: { session: AuthSession }) {
@@ -67,6 +68,7 @@ export function AdminApp({ session }: { session: AuthSession }) {
     { id: 'provisional', label: '仮顧客の処理', icon: 'info', admin: true, badge: provisionalCount || undefined },
     { id: 'deleted', label: '削除済みデータ', icon: 'trash', admin: true },
     { id: 'logs', label: '操作ログ', icon: 'log', admin: true },
+    { id: 'storage', label: '保存容量', icon: 'image', admin: true },
     { id: 'users', label: 'ユーザー管理', icon: 'settings', admin: true },
   ];
 
@@ -136,6 +138,7 @@ export function AdminApp({ session }: { session: AuthSession }) {
         {view === 'notifications' && <NotificationsPane onOpen={openNotification} />}
         {view === 'duplicates' && isAdmin && <DuplicatesPane key={pair?.join(':') ?? 'list'} initialPair={pair} />}
         {view === 'logs' && isAdmin && <LogPane />}
+        {view === 'storage' && isAdmin && <StoragePane />}
         {view === 'provisional' && isAdmin && <ProvisionalPane />}
         {view === 'deleted' && isAdmin && <DeletedPane />}
         {view === 'users' && isAdmin && (

@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import { AuthRequiredError, NetworkError, type AuthSession, type DataProvider, type RemoteProfile, type RemoteRow } from './provider';
+import { AuthRequiredError, NetworkError, type AuthSession, type DataProvider, type RemoteFile, type RemoteProfile, type RemoteRow } from './provider';
 
 const BUCKET = 'photos';
 const STORAGE_KEY = 'geoboard.auth';
@@ -199,6 +199,47 @@ export function createSupabaseProvider(url: string, key: string): DataProvider {
       try {
         const { error } = await client.rpc('unmerge_ledger', { p_source: sourceId });
         if (error) throw error;
+      } catch (e) {
+        throw wrapError(e);
+      }
+    },
+
+    async listFiles() {
+      await requireSession();
+      try {
+        const out: RemoteFile[] = [];
+        // {顧客ID}/{台帳ID}/ファイル の階層をたどる（フォルダは id が null）
+        const walk = async (prefix: string, depth: number) => {
+          for (let offset = 0; ; offset += 1000) {
+            const { data, error } = await client.storage.from(BUCKET).list(prefix, { limit: 1000, offset, sortBy: { column: 'name', order: 'asc' } });
+            if (error) throw error;
+            for (const e of data ?? []) {
+              const path = prefix ? `${prefix}/${e.name}` : e.name;
+              if (e.id == null) {
+                if (depth < 4) await walk(path, depth + 1);
+              } else {
+                const meta = e.metadata as { size?: number } | null;
+                out.push({ path, size: Number(meta?.size ?? 0), createdAt: e.created_at ?? e.updated_at ?? '' });
+              }
+            }
+            if ((data ?? []).length < 1000) break;
+          }
+        };
+        await walk('', 0);
+        return out;
+      } catch (e) {
+        throw wrapError(e);
+      }
+    },
+
+    async deleteFiles(paths) {
+      if (paths.length === 0) return;
+      await requireSession();
+      try {
+        for (let i = 0; i < paths.length; i += 100) {
+          const { error } = await client.storage.from(BUCKET).remove(paths.slice(i, i + 100));
+          if (error) throw error;
+        }
       } catch (e) {
         throw wrapError(e);
       }

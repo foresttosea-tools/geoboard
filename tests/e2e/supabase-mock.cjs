@@ -46,6 +46,7 @@ function createMock() {
     [users['michi@example.com'].id, { user_id: users['michi@example.com'].id, display_name: '道', role: 'member', disabled: false, updated_at: new Date().toISOString() }],
   ]);
   const files = new Map();
+  const fileTimes = new Map();
   const errors = [];
   const failRecordIds = new Set();
   let codeSeq = 0;
@@ -259,6 +260,26 @@ function createMock() {
       const rows = [...store[t].values()].filter((r) => !since || r.server_updated_at > since).sort((a, b) => a.server_updated_at.localeCompare(b.server_updated_at)).slice(0, limit);
       return json(200, rows);
     }
+    if (p === '/storage/v1/object/list/photos') {
+      if (!me || me.disabled) return json(200, []);
+      const { prefix = '', limit = 100, offset = 0 } = JSON.parse(req.postData() || '{}');
+      const pre = prefix ? prefix.replace(/\/$/, '') + '/' : '';
+      const seen = new Map();
+      for (const [k, v] of files) {
+        if (!k.startsWith(pre)) continue;
+        const rest = k.slice(pre.length);
+        const [head, ...tail] = rest.split('/');
+        if (tail.length) seen.set(head, { name: head, id: null, metadata: null });
+        else seen.set(head, { name: head, id: 'f-' + k, created_at: fileTimes.get(k), updated_at: fileTimes.get(k), metadata: { size: v.length } });
+      }
+      return json(200, [...seen.values()].sort((a, b) => a.name.localeCompare(b.name)).slice(offset, offset + limit));
+    }
+    if (p === '/storage/v1/object/photos' && req.method() === 'DELETE') {
+      if (me?.role !== 'admin' || me.disabled) return json(403, { statusCode: '403', error: 'Unauthorized', message: 'new row violates row-level security policy' });
+      const { prefixes = [] } = JSON.parse(req.postData() || '{}');
+      const removed = prefixes.filter((k) => files.delete(k)).map((k) => ({ name: k }));
+      return json(200, removed);
+    }
     const info = p.match(/^\/storage\/v1\/object\/info\/photos\/(.+)$/);
     if (info) {
       const f = files.get(decodeURIComponent(info[1]));
@@ -286,6 +307,7 @@ function createMock() {
           if (file) body = file.subarray(file.indexOf('\r\n\r\n') + 4);
         }
         files.set(path, body);
+        fileTimes.set(path, new Date().toISOString());
         return json(200, { Key: 'photos/' + path, Id: 'x' });
       }
       const f = files.get(path);
@@ -294,6 +316,6 @@ function createMock() {
     errors.push(`unhandled ${req.method()} ${p}`);
     return json(404, { message: 'mock: unhandled' });
   }
-  return { handle, store, files, profiles, errors, failRecordIds, columns, logs };
+  return { handle, store, files, fileTimes, profiles, errors, failRecordIds, columns, logs };
 }
 module.exports = { createMock };
