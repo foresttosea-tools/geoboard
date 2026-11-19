@@ -588,7 +588,7 @@ button:disabled { opacity: 0.4; cursor: default; }
 .admin-modal { width: min(1200px, 100%); height: min(820px, 100%); display: grid; grid-template-columns: minmax(0, 1fr) 380px; background: var(--c-surface); border-radius: 18px; overflow: hidden; box-shadow: var(--shadow-lg); }
 .admin-modal-image { position: relative; background: #111; display: grid; place-items: center; min-height: 0; }
 .admin-modal-image img { max-width: 100%; max-height: 100%; object-fit: contain; }
-.admin-modal-imagebar { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); }
+.admin-modal-imagebar { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .admin-modal-imagebar .segmented.inline { margin: 0; background: rgba(0,0,0,0.6); border-color: transparent; }
 .admin-modal-imagebar .segmented.inline button { color: #ddd; }
 .admin-modal-imagebar .segmented.inline button.on { color: var(--brand); background: #fff; }
@@ -696,3 +696,28 @@ button:disabled { opacity: 0.4; cursor: default; }
 .storage-bar span { display: block; height: 100%; background: var(--brand); }
 .storage-bar span.warn { background: var(--c-pending); }
 .password-form { display: flex; flex-direction: column; gap: 4px; margin: 4px 0 12px; padding: 12px; border-radius: 12px; background: var(--c-surface-2); }
+
+/* PC管理画面：絞り込み（P02） */
+.admin-filter { margin: 0 0 14px; border: 1px solid var(--c-border); border-radius: 12px; background: var(--c-surface); padding: 0 14px; }
+.admin-filter summary { cursor: pointer; min-height: 40px; display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+.admin-filter[open] { padding-bottom: 12px; }
+.admin-filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px 16px; }
+.admin-filter-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 800; color: var(--c-muted); }
+.admin-filter-grid input { min-height: 38px; padding: 0 10px; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-surface); color: var(--c-text); font-size: 14px; min-width: 0; }
+.admin-filter-grid .range { display: flex; align-items: center; gap: 6px; color: var(--c-text); font-weight: 400; }
+.admin-filter-grid .range input { flex: 1; }
+.admin-filter .hint { margin: 10px 0 0; font-size: 12px; }
+.admin-filter .hint .text-btn { margin-left: 8px; }
+
+/* PC管理画面：台帳詳細の記録（P03） */
+.admin-records-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 12px; min-height: 40px; }
+.admin-records-bar .hint .text-btn { margin-left: 8px; }
+.segmented.inline.view-toggle { margin: 0; flex: none; }
+.segmented.inline.view-toggle button { flex: none; width: 44px; min-height: 34px; display: grid; place-items: center; }
+.admin-record-table .thumb-cell { width: 84px; padding-top: 6px; padding-bottom: 6px; }
+.admin-record-table .admin-card-thumb { width: 72px; border-radius: 6px; overflow: hidden; }
+.admin-record-table .marks { margin: 0; }
+
+/* S18 ホーム画面追加の案内 */
+.install-guide ol { margin: 0 0 14px; padding-left: 1.4em; font-size: 14px; line-height: 1.7; }
+.install-guide .hint { font-size: 12px; }

@@ -39,6 +39,8 @@ export interface Customer {
   deletedAt: string | null;
   syncStatus: SyncStatus;
   syncError?: string;
+  /** 未送信になった日時（未送信警告の日数を数える。端末だけで持つ） */
+  pendingSince?: string;
 }
 
 export interface Ledger {
@@ -63,6 +65,8 @@ export interface Ledger {
   fieldBase?: Record<string, unknown>;
   syncStatus: SyncStatus;
   syncError?: string;
+  /** 未送信になった日時（未送信警告の日数を数える。端末だけで持つ） */
+  pendingSince?: string;
 }
 
 export interface WorkRecord {
@@ -95,6 +99,8 @@ export interface WorkRecord {
   fieldBase?: Record<string, unknown>;
   syncStatus: SyncStatus;
   syncError?: string;
+  /** 未送信になった日時（未送信警告の日数を数える。端末だけで持つ） */
+  pendingSince?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -129,6 +135,8 @@ export interface BoardTemplate {
   deletedAt: string | null;
   syncStatus: SyncStatus;
   syncError?: string;
+  /** 未送信になった日時（未送信警告の日数を数える。端末だけで持つ） */
+  pendingSince?: string;
 }
 
 /** 次回への引継ぎ事項（黒板には載せない） */
@@ -148,6 +156,8 @@ export interface ExtraPhoto {
   thumbPath?: string | null;
   syncStatus: SyncStatus;
   syncError?: string;
+  /** 未送信になった日時（未送信警告の日数を数える。端末だけで持つ） */
+  pendingSince?: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

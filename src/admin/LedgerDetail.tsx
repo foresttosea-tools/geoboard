@@ -1,12 +1,15 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
-import { BOARD_SLOTS, SLOT_DATE, SLOT_PLACE, SLOT_WORK, formatBoardDate } from '../blackboard/model';
+import { BOARD_SLOTS, SLOT_DATE, SLOT_PLACE, SLOT_WORK, SLOT_WORKER, formatBoardDate } from '../blackboard/model';
 import { HistoryList } from '../components/HistoryList';
 import { Icon } from '../components/Icon';
 import { LocationValue } from '../components/LocationValue';
 import { Marks, formatShotDate } from '../components/RecordMarks';
 import { db } from '../db';
-import { formatTerm } from '../lib/repo';
+import { formatTerm, normalizeForSearch } from '../lib/repo';
+import { loadImageBlob } from '../sync/images';
+import { hasRecordFilter, recordMatches, type AdminFilter } from './filters';
+import { reportImageBlob } from './report';
 import { useImageUrl } from '../sync/images';
 import type { ExtraPhoto, WorkRecord } from '../types';
 import { MapView } from './MapView';
@@ -19,10 +22,22 @@ interface Props {
   onBack: () => void;
   /** 最初に開く作業記録（通知から開いたとき） */
   initialRecordId?: string | null;
+  /** P02の絞り込み条件（撮影日・施工者・キーワードで記録を絞る） */
+  filter?: AdminFilter;
+}
+
+type RecordView = 'grid' | 'list';
+const VIEW_KEY = 'geoboard.admin.recordView';
+function loadView(): RecordView {
+  try {
+    return localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid';
+  } catch {
+    return 'grid';
+  }
 }
 
 /** P03 台帳詳細 */
-export function LedgerDetail({ ledgerId, onBack, initialRecordId }: Props) {
+export function LedgerDetail({ ledgerId, onBack, initialRecordId, filter }: Props) {
   const ledger = useLiveQuery(() => db.ledgers.get(ledgerId), [ledgerId]);
   const customer = useLiveQuery(async () => (ledger ? await db.customers.get(ledger.customerId) : undefined), [ledger?.customerId]);
   const recordsRaw = useLiveQuery(() => db.records.where('ledgerId').equals(ledgerId).filter((r) => !r.deletedAt).toArray(), [ledgerId]);
@@ -31,6 +46,28 @@ export function LedgerDetail({ ledgerId, onBack, initialRecordId }: Props) {
   const [openId, setOpenId] = useState<string | null>(initialRecordId ?? null);
   const [reporting, setReporting] = useState(false);
   const [zipState, setZipState] = useState<string | null>(null);
+  const [view, setViewState] = useState<RecordView>(loadView);
+  const setView = (v: RecordView) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {
+      /* 保存できなくても表示は切り替える */
+    }
+  };
+  // 絞り込み条件。キーワードが台帳の内容に含まれる場合は、記録はキーワード以外の条件だけで見る（P02と同じ判定）
+  const recordFilter = useMemo(() => {
+    if (!filter || !ledger) return null;
+    const kw = normalizeForSearch(filter.keyword);
+    const ledgerHit = !!kw && [ledger.name, ledger.manager, ledger.note].some((s) => normalizeForSearch(s).includes(kw));
+    const f = ledgerHit ? { ...filter, keyword: '' } : filter;
+    return hasRecordFilter(f) ? f : null;
+  }, [filter, ledger]);
+  const [showAll, setShowAll] = useState(false);
+  const filtered = !showAll && recordFilter != null;
+  const shown = useMemo(() => (filtered && recordFilter ? records.filter((r) => recordMatches(r, recordFilter)) : records), [records, filtered, recordFilter]);
+  // ZIPと同じ連番（台帳内の撮影日時順）
+  const numberOf = useMemo(() => new Map(records.map((r, i) => [r.id, i + 1])), [records]);
 
   if (!ledger || !customer) return <div className="admin-page">読み込んでいます…</div>;
   if (ledger.mergedInto) return <MergedNotice ledgerName={ledger.name} targetId={ledger.mergedInto} onBack={onBack} />;
@@ -102,16 +139,79 @@ export function LedgerDetail({ ledgerId, onBack, initialRecordId }: Props) {
         </button>
       </div>
 
+      {tab === 'records' && (
+        <div className="admin-records-bar">
+          <span className="hint">
+            {recordFilter ? (
+              filtered ? (
+                <>
+                  絞り込み中：{shown.length} / {records.length}件
+                  <button className="text-btn" onClick={() => setShowAll(true)}>
+                    すべて表示
+                  </button>
+                </>
+              ) : (
+                <>
+                  すべての記録を表示中
+                  <button className="text-btn" onClick={() => setShowAll(false)}>
+                    絞り込み条件に戻す
+                  </button>
+                </>
+              )
+            ) : null}
+          </span>
+          <div className="segmented inline view-toggle" role="group" aria-label="表示の切り替え">
+            <button className={view === 'grid' ? 'on' : ''} aria-pressed={view === 'grid'} onClick={() => setView('grid')} aria-label="グリッド表示">
+              <Icon name="grid" size={18} />
+            </button>
+            <button className={view === 'list' ? 'on' : ''} aria-pressed={view === 'list'} onClick={() => setView('list')} aria-label="リスト表示">
+              <Icon name="list" size={18} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {tab === 'records' ? (
-        records.length === 0 ? (
-          <p className="empty">記録がありません</p>
+        shown.length === 0 ? (
+          <p className="empty">{records.length === 0 ? '記録がありません' : '条件に合う記録がありません'}</p>
+        ) : view === 'list' ? (
+          <table className="admin-table admin-record-table">
+            <thead>
+              <tr>
+                <th className="num">No</th>
+                <th />
+                <th>撮影日</th>
+                <th>作業場所</th>
+                <th>作業内容</th>
+                <th>施工者</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((r) => (
+                <tr key={r.id} className="clickable" onClick={() => setOpenId(r.id)}>
+                  <td className="num">{numberOf.get(r.id)}</td>
+                  <td className="thumb-cell">
+                    <CardThumb r={r} />
+                  </td>
+                  <td>{formatShotDate(r)}</td>
+                  <td className="strong">{r.board?.[SLOT_PLACE]?.value || '—'}</td>
+                  <td>{r.board?.[SLOT_WORK]?.value || (r.mode === 'without_board' ? '黒板なし' : '—')}</td>
+                  <td>{r.board?.[SLOT_WORKER]?.value || '—'}</td>
+                  <td>
+                    <Marks r={r} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         ) : (
           <ul className="admin-cards">
-            {records.map((r, i) => (
+            {shown.map((r) => (
               <li key={r.id}>
                 <button className="admin-card" onClick={() => setOpenId(r.id)}>
                   <CardThumb r={r} />
-                  <span className="admin-card-no">{i + 1}</span>
+                  <span className="admin-card-no">{numberOf.get(r.id)}</span>
                   <span className="admin-card-body">
                     <span className="admin-card-date">{formatShotDate(r)}</span>
                     <strong>{r.board?.[SLOT_PLACE]?.value || '（作業場所なし）'}</strong>
@@ -131,7 +231,15 @@ export function LedgerDetail({ ledgerId, onBack, initialRecordId }: Props) {
         </div>
       )}
 
-      {openId && <RecordModal ids={records.map((r) => r.id)} id={openId} onChange={setOpenId} onClose={() => setOpenId(null)} />}
+      {openId && (
+        <RecordModal
+          ids={(shown.some((r) => r.id === openId) ? shown : records).map((r) => r.id)}
+          id={openId}
+          number={numberOf.get(openId) ?? 0}
+          onChange={setOpenId}
+          onClose={() => setOpenId(null)}
+        />
+      )}
       {reporting && <ReportDialog customer={customer} ledger={ledger} records={records} onClose={() => setReporting(false)} />}
     </div>
   );
@@ -145,11 +253,12 @@ function CardThumb({ r }: { r: WorkRecord }) {
 const MODE_LABEL = { with_board: '黒板ありのみ', without_board: '黒板なしのみ', both: '黒板あり＋なし（両方）' } as const;
 
 /** P04 作業記録の詳細（PCでは閲覧のみ。編集はスマホで行う） */
-function RecordModal({ ids, id, onChange, onClose }: { ids: string[]; id: string; onChange: (id: string) => void; onClose: () => void }) {
+function RecordModal({ ids, id, number, onChange, onClose }: { ids: string[]; id: string; number: number; onChange: (id: string) => void; onClose: () => void }) {
   const r = useLiveQuery(() => db.records.get(id), [id]);
   const extras = useLiveQuery(() => db.extras.where('recordId').equals(id).filter((x) => !x.deletedAt).sortBy('createdAt'), [id]);
   const [showOriginal, setShowOriginal] = useState(false);
   const [extra, setExtra] = useState<ExtraPhoto | null>(null);
+  const [downloading, setDownloading] = useState(false);
   const useOriginal = showOriginal || r?.mode === 'without_board';
   const image = useImageUrl(r ? `${id}:${useOriginal ? 'original' : 'composite'}` : null, useOriginal ? r?.originalPath : r?.compositePath);
   const thumb = useImageUrl(r ? `${id}:thumb` : null, r?.thumbPath);
@@ -157,6 +266,33 @@ function RecordModal({ ids, id, onChange, onClose }: { ids: string[]; id: string
   const index = ids.indexOf(id);
   if (!r) return null;
   const url = extra ? extraImg.url : (image.url ?? thumb.url);
+
+  // 表示中の写真を1枚ダウンロードする（要件8.1）。ファイル名はZIPと同じ {撮影日}_{連番}.jpg
+  const download = async () => {
+    setDownloading(true);
+    try {
+      const base = `${formatShotDate(r).replaceAll('/', '')}_${String(number).padStart(3, '0')}`;
+      let blob: Blob | null;
+      let name: string;
+      if (extra) {
+        const k = (extras ?? []).findIndex((x) => x.id === extra.id) + 1;
+        blob = await loadImageBlob(`${extra.id}:extra`, extra.path);
+        name = `${base}_追加${k}.jpg`;
+      } else if (r.mode === 'both' && showOriginal) {
+        blob = await loadImageBlob(`${r.id}:original`, r.originalPath);
+        name = `${base}_黒板なし.jpg`;
+      } else {
+        blob = await reportImageBlob(r, r.mode !== 'without_board');
+        name = `${base}.jpg`;
+      }
+      if (!blob) throw new Error('写真がサーバーにまだありません');
+      saveBlob(blob, name);
+    } catch (e) {
+      alert(`写真をダウンロードできませんでした：${(e as Error).message}`);
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   return (
     <div className="admin-modal-backdrop" onClick={onClose}>
@@ -174,6 +310,10 @@ function RecordModal({ ids, id, onChange, onClose }: { ids: string[]; id: string
                 <button className={showOriginal ? 'on' : ''} onClick={() => setShowOriginal(true)}>黒板なし</button>
               </div>
             ) : null}
+            <button className="btn" onClick={download} disabled={downloading}>
+              <Icon name="download" size={16} />
+              {downloading ? '準備しています…' : 'この写真をダウンロード'}
+            </button>
           </div>
         </div>
         <div className="admin-modal-side">

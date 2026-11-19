@@ -321,7 +321,7 @@ async function pullTable<T extends Syncable>(
     if (local.remote && local.fieldBase) {
       const mine: Record<string, unknown> = {};
       for (const k of Object.keys(local.fieldBase)) mine[k] = (local as unknown as Record<string, unknown>)[k];
-      return { ...row, ...mine, syncStatus: local.syncStatus, syncError: (local as { syncError?: string }).syncError, fieldBase: local.fieldBase, updatedAt: local.updatedAt > row.updatedAt ? local.updatedAt : row.updatedAt } as T;
+      return { ...row, ...mine, syncStatus: local.syncStatus, syncError: (local as { syncError?: string }).syncError, pendingSince: (local as { pendingSince?: string }).pendingSince, fieldBase: local.fieldBase, updatedAt: local.updatedAt > row.updatedAt ? local.updatedAt : row.updatedAt } as T;
     }
     // 端末に未送信の変更があり、そちらが新しい場合は端末を優先
     if (local.updatedAt >= row.updatedAt) return null;

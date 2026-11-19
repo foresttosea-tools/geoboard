@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { InstallGuide } from './components/InstallGuide';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { SLOT_CUSTOMER, SLOT_WORKER, createDefaultBoard, normalizeBoard, withToday } from './blackboard/model';
 import { db, requestPersistentStorage } from './db';
@@ -96,7 +97,13 @@ export default function App() {
         <AdminApp session={session} />
       </Suspense>
     );
-  return <MainApp session={session} />;
+  return (
+    <>
+      <MainApp session={session} />
+      {/* S18 ブラウザのタブで開いたときは、ホーム画面への追加を案内する（要件7.1） */}
+      <InstallGuide />
+    </>
+  );
 }
 
 function MainApp({ session }: { session: AuthSession }) {

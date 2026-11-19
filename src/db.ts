@@ -153,14 +153,19 @@ for (const table of [db.customers, db.ledgers, db.records, db.extras, db.templat
   table.hook('creating', (_pk, obj: { syncStatus?: string }, tx) => {
     if (isSyncTx(tx)) return;
     if (!obj.syncStatus) obj.syncStatus = 'pending';
-    if (obj.syncStatus === 'pending') queueMicrotask(notifyChange);
+    if (obj.syncStatus === 'pending') {
+      (obj as { pendingSince?: string }).pendingSince = new Date().toISOString();
+      queueMicrotask(notifyChange);
+    }
   });
   const fields = MERGE_FIELDS[table.name];
   table.hook('updating', (mods: object, _pk, obj: object, tx) => {
     if (isSyncTx(tx) || 'syncStatus' in mods) return undefined;
     queueMicrotask(notifyChange);
     const extra: Record<string, unknown> = { syncStatus: 'pending', syncError: undefined };
-    const old = obj as Record<string, unknown> & { remote?: boolean; fieldBase?: Record<string, unknown> };
+    const old = obj as Record<string, unknown> & { remote?: boolean; fieldBase?: Record<string, unknown>; syncStatus?: string; pendingSince?: string };
+    // 未送信になった日時（未送信警告の日数はここから数える。要件7.2）
+    if (old.syncStatus === 'synced' || !old.pendingSince) extra.pendingSince = new Date().toISOString();
     if (fields && old.remote) {
       const base = { ...(old.fieldBase ?? {}) };
       let changed = false;

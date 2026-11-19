@@ -61,7 +61,7 @@ export function SyncBar() {
     });
   }
   if (stale) {
-    items.push({ tone: 'warn', text: `${warnDays}日以上送信されていない記録があります。電波のある場所でアプリを開いてください` });
+    items.push({ tone: 'warn', text: `${warnDays}日以上送信されていないデータがあります。電波のある場所でアプリを開いてください` });
   }
   if (items.length === 0) return null;
 

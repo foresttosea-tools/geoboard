@@ -1,4 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
+import { isStandalone } from '../lib/standalone';
 import { useEffect, useState } from 'react';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Icon } from '../components/Icon';
@@ -49,7 +50,7 @@ export function Settings({ session, onBack }: Props) {
       .catch(() => undefined);
   }, []);
 
-  const standalone = window.matchMedia('(display-mode: standalone)').matches || (navigator as unknown as { standalone?: boolean }).standalone === true;
+  const standalone = isStandalone();
 
   const doLogout = async () => {
     await getProvider().signOut();

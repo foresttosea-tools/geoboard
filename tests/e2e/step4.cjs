@@ -14,6 +14,7 @@ const check = (label, ok, detail = '') => {
   const b = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
   const mk = async (name, device) => {
     const ctx = await b.newContext({ ...(device ? devices[device] : { viewport: { width: 1360, height: 900 } }), deviceScaleFactor: 1, permissions: ['camera'], serviceWorkers: 'block' });
+    await ctx.addInitScript(() => sessionStorage.setItem('geoboard.installGuideShown', '1'));
     await ctx.route('https://fmmqxpunqxwxrsicfbev.supabase.co/**', (r) => mock.handle(r));
     const p = await ctx.newPage();
     p.errs = [];

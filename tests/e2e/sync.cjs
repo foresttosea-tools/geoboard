@@ -7,6 +7,7 @@ const URL_ = 'http://localhost:4173/geoboard/';
   const b = await chromium.launch({ args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
   const mkPhone = async (name) => {
     const ctx = await b.newContext({ ...devices['Pixel 7'], deviceScaleFactor: 2, permissions: ['camera'], serviceWorkers: 'block' });
+    await ctx.addInitScript(() => sessionStorage.setItem('geoboard.installGuideShown', '1'));
     await ctx.route('https://fmmqxpunqxwxrsicfbev.supabase.co/**', (r) => { if (process.env.DBG && r.request().method() !== 'GET') console.log('  REQ', name, r.request().method(), r.request().url().split('.co')[1].slice(0, 70)); return mock.handle(r); });
     const p = await ctx.newPage();
     p.errs = []; p.on('pageerror', (e) => p.errs.push(e.message)); p.on('console', (m) => m.type() === 'error' && !/Failed to load resource|ERR_INTERNET_DISCONNECTED/.test(m.text()) && p.errs.push(m.text()));

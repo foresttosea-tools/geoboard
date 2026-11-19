@@ -32,13 +32,21 @@ export function useSyncState() {
   return useSyncExternalStore(syncStore.subscribe, syncStore.get);
 }
 
-/** 未送信・送信失敗の件数と、設定日数より古い未送信の作業記録があるか（要件7.2） */
+/**
+ * 未送信・送信失敗の件数と、設定日数より長く未送信のままのデータがあるか（要件7.2）。
+ * 日数は未送信になった日時（pendingSince）から数える。送信済みの古い記録を編集しただけで警告が出ないようにするため
+ */
 export function useUnsent() {
   return useLiveQuery(async () => {
     const counts = await countUnsent();
-    const oldest = (await db.records.where('syncStatus').anyOf('pending', 'failed').sortBy('createdAt'))[0];
+    let oldest = Infinity;
+    for (const t of [db.customers, db.ledgers, db.records, db.extras, db.templates]) {
+      const rows = (await t.where('syncStatus').anyOf('pending', 'failed').toArray()) as { pendingSince?: string; updatedAt?: string; createdAt: string }[];
+      // pendingSince を持たない古い行は、最後に変更した日時で代用する
+      for (const r of rows) oldest = Math.min(oldest, Date.parse(r.pendingSince ?? r.updatedAt ?? r.createdAt) || Infinity);
+    }
     const warnMs = prefs.getUnsentWarnDays() * 24 * 60 * 60 * 1000;
-    const stale = oldest != null && Date.now() - Date.parse(oldest.createdAt) > warnMs;
+    const stale = Date.now() - oldest > warnMs;
     return { ...counts, stale };
   }, []);
 }
